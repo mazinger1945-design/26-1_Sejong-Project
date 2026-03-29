@@ -1,4 +1,4 @@
-package com.smartsejong.api.repository;
+package com.smartsejong.api.domain.course.repository;
 
 import com.smartsejong.api.entity.CompletedCourse;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -24,7 +24,7 @@ public interface CompletedCourseRepository extends JpaRepository<CompletedCourse
 
     List<CompletedCourse> findByUser_IdAndCategory(Long userId, String category);
 
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("DELETE FROM CompletedCourse c WHERE c.user.id = :userId")
     void deleteByUserId(@Param("userId") Long userId);
 }
