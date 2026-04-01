@@ -22,7 +22,7 @@ export default function ProfilePage() {
     if (userInfo) {
       setUser(userInfo)
       setName(userInfo.nickname || '')
-      setMajor('') // major는 API 응답에 포함되어야 함
+      setMajor(userInfo.major || '')
     }
   }, [userInfo, setUser])
 
@@ -43,8 +43,8 @@ export default function ProfilePage() {
   const handleCancel = () => {
     if (userInfo) {
       setName(userInfo.nickname || '')
+      setMajor(userInfo.major || '')
     }
-    setMajor('')
     setIsEditing(false)
   }
 
@@ -141,7 +141,7 @@ export default function ProfilePage() {
                 placeholder="전공을 입력하세요"
               />
             ) : (
-              <p className="text-gray-900">{major || '-'}</p>
+              <p className="text-gray-900">{userInfo?.major || '-'}</p>
             )}
           </div>
 

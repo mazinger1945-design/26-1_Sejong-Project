@@ -69,7 +69,7 @@ export default function Layout() {
                 className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
               >
                 <User className="w-5 h-5" />
-                <span className="hidden sm:inline">{user?.nickname || '사용자'}</span>
+                <span className="hidden sm:inline">{user?.nickname || user?.student_id || '사용자'}</span>
               </NavLink>
               <button
                 onClick={handleLogout}

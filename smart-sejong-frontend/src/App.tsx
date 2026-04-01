@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import Layout from './components/Layout'
+import { normalizeUserInfo } from './lib/user'
 import LoginPage from './pages/LoginPage'
 import LearningPage from './pages/LearningPage'
 import RecommendationPage from './pages/RecommendationPage'
@@ -34,7 +35,7 @@ function App() {
     
     if (token && userStr) {
       try {
-        const user = JSON.parse(userStr)
+        const user = normalizeUserInfo(JSON.parse(userStr))
         setUser(user)
       } catch (error) {
         console.error('Failed to parse user info:', error)

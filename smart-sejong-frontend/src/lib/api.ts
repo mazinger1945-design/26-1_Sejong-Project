@@ -4,6 +4,7 @@ import type {
   AuthResponse,
   LoginRequest,
   UserInfo,
+  UserProfileApiResponse,
   Course,
   LearningSummary,
   UploadResponse,
@@ -26,6 +27,7 @@ import type {
   RecommendationCombination,
   CopyRecommendationRequest,
 } from '@/types'
+import { normalizeUserInfo } from '@/lib/user'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
@@ -111,9 +113,12 @@ class ApiClient {
   }
 
   async getMyInfo(): Promise<UserInfo> {
-    const { data } = await this.client.get<{ status?: number; data?: UserInfo }>('/api/users/me')
-    if (data?.data) return data.data
-    return data as unknown as UserInfo
+    const { data } = await this.client.get<{ status?: number; data?: UserProfileApiResponse }>('/api/users/me')
+    const normalized = normalizeUserInfo(data?.data ?? (data as unknown as UserProfileApiResponse))
+    if (!normalized) {
+      throw new Error('사용자 정보를 받지 못했습니다.')
+    }
+    return normalized
   }
 
   async updateMyInfo(updates: { name?: string; major?: string }): Promise<void> {

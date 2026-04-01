@@ -13,9 +13,16 @@ export interface AuthUserInfo {
   major?: string
 }
 
+export interface UserProfileApiResponse {
+  fullName: string
+  studentId: string
+  major?: string
+}
+
 export interface UserInfo {
   nickname: string
   student_id?: string
+  major?: string
   is_verified: boolean
   profile_image?: string
 }

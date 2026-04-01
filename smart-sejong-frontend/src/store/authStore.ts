@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { UserInfo } from '@/types'
+import { normalizeUserInfo } from '@/lib/user'
 
 interface AuthState {
   user: UserInfo | null
@@ -11,7 +12,7 @@ interface AuthState {
 const loadUserFromStorage = (): UserInfo | null => {
   try {
     const stored = localStorage.getItem('user')
-    return stored ? JSON.parse(stored) : null
+    return stored ? normalizeUserInfo(JSON.parse(stored)) : null
   } catch {
     return null
   }
@@ -29,8 +30,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: loadUserFromStorage(),
   isAuthenticated: !!loadUserFromStorage(),
   setUser: (user) => {
-    saveUserToStorage(user)
-    set({ user, isAuthenticated: !!user })
+    const normalized = normalizeUserInfo(user)
+    saveUserToStorage(normalized)
+    set({ user: normalized, isAuthenticated: !!normalized })
   },
   logout: () => {
     localStorage.removeItem('user')

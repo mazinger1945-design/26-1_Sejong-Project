@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
+import { normalizeUserInfo } from '@/lib/user'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
 import { GraduationCap } from 'lucide-react'
@@ -33,12 +34,7 @@ export default function LoginPage() {
       
       // 사용자 정보 저장 및 인증 상태 업데이트
       if (response.user) {
-        setUser({
-          nickname: response.user.fullName || response.user.studentId || '사용자',
-          student_id: response.user.studentId,
-          is_verified: true, // 로그인 성공 시 인증됨
-          profile_image: undefined,
-        })
+        setUser(normalizeUserInfo(response.user))
       }
       
       toast.success('로그인에 성공했습니다!')
