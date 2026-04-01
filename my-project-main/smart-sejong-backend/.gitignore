@@ -1,0 +1,30 @@
+Java & Spring Boot
+
+.gradle/
+build/
+bin/
+out/
+
+IDE Settings
+
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.vscode/
+
+Environment Secrets (Very Important)
+
+src/main/resources/application-secret.yml
+src/main/resources/application.yml
+
+Logs
+
+logs/
+*.log
+
+OS
+
+.DS_Store
+Thumbs.db
