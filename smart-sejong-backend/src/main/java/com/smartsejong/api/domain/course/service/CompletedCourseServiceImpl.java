@@ -9,7 +9,7 @@ import com.smartsejong.api.domain.user.repository.UserRepository;
 import com.smartsejong.api.entity.CompletedCourse;
 import com.smartsejong.api.exception.CustomException;
 import com.smartsejong.api.exception.ErrorCode;
-import com.smartsejong.api.repository.CompletedCourseRepository;
+import com.smartsejong.api.domain.course.repository.CompletedCourseRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
@@ -98,7 +98,7 @@ public class CompletedCourseServiceImpl implements CompletedCourseService {
                     int credits = (int) getNumericCellValue(row.getCell(8));
                     String grade = getCellValue(row.getCell(10));
                     double gradePoint = getNumericCellValue(row.getCell(11));
-                    if (courseCode.isEmpty() || courseName.isEmpty()) {
+                    if (courseCode.isEmpty() || courseName.isEmpty() || courseCode.equals("학수번호")) {
                         skipCount++;
                         continue;
                     }

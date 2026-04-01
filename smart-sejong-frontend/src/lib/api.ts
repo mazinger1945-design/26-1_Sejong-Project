@@ -42,9 +42,6 @@ class ApiClient {
   constructor() {
     this.client = axios.create({
       baseURL: API_BASE_URL,
-      headers: {
-        'Content-Type': 'application/json',
-      },
     })
 
     // Request interceptor - Add token to headers
@@ -147,12 +144,7 @@ class ApiClient {
     formData.append('file', file)
     const { data } = await this.client.post<UploadResponse>(
       '/api/learning/upload',
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      }
+      formData
     )
     return data
   }
@@ -174,8 +166,7 @@ class ApiClient {
     formData.append('file', file)
     const { data } = await this.client.post<{ status?: number; data?: CompletedCourseItem[] }>(
       '/api/completed-courses/upload',
-      formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
+      formData
     )
     if (data?.data) return data.data
     return (data as unknown as CompletedCourseItem[]) ?? []
@@ -187,8 +178,7 @@ class ApiClient {
     formData.append('file', file)
     const { data } = await this.client.post<{ status?: number; data?: CompletedCourseUploadResult }>(
       '/api/completed-courses/import',
-      formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
+      formData
     )
     if (data?.data) return data.data
     throw new Error('저장 결과를 받지 못했습니다.')
