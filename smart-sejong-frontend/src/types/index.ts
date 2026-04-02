@@ -118,6 +118,14 @@ export interface TimetableItem {
   end: string
   is_pinned: boolean
   type: 'section' | 'custom'
+  /**
+   * 표시 전용 variant (추천 페이지 미리보기에서 사용)
+   * 'locked'        → 고정 분반 (초록)
+   * 'custom-locked' → 고정 사용자 일정 (주황)
+   * 'recommended'   → 추천 분반 (파랑, 연하게)
+   * undefined       → 기존 TimetablePage 동작 유지
+   */
+  _variant?: 'locked' | 'custom-locked' | 'recommended'
 }
 
 export interface CreateTimetableRequest {

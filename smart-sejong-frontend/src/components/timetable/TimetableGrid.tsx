@@ -1,6 +1,6 @@
 import React from 'react'
 import type { TimetableItem } from '@/types'
-import { Pin } from 'lucide-react'
+import { Pin, Lock } from 'lucide-react'
 
 interface TimetableGridProps {
   items: TimetableItem[]
@@ -42,14 +42,18 @@ export function TimetableGrid({ items, onItemClick, onPinToggle, editable = fals
   }
 
   const getItemColor = (item: TimetableItem) => {
-    if (item.is_pinned) {
-      return 'bg-primary-500 border-primary-600'
-    }
-    if (item.type === 'custom') {
-      return 'bg-purple-500 border-purple-600'
-    }
+    // 추천 페이지 미리보기 전용 variant
+    if (item._variant === 'locked') return 'bg-emerald-500 border-emerald-600'
+    if (item._variant === 'custom-locked') return 'bg-orange-400 border-orange-500'
+    if (item._variant === 'recommended') return 'bg-blue-400 border-blue-500'
+    // 기존 TimetablePage 동작 유지
+    if (item.is_pinned) return 'bg-primary-500 border-primary-600'
+    if (item.type === 'custom') return 'bg-purple-500 border-purple-600'
     return 'bg-blue-500 border-blue-600'
   }
+
+  const isLockedVariant = (item: TimetableItem) =>
+    item._variant === 'locked' || item._variant === 'custom-locked'
 
   return (
     <div className="w-full overflow-x-auto">
@@ -82,13 +86,12 @@ export function TimetableGrid({ items, onItemClick, onPinToggle, editable = fals
                   >
                     {/* Items for this time slot */}
                     {items
-                      .map((item) => {
+                      .flatMap((item) => {
                         const pos = getItemPosition(item)
-                        if (!pos || pos.day !== dayIndex + 1) return null
-                        if (pos.slot !== hourIndex) return null
-                        return { item, pos }
+                        if (!pos || pos.day !== dayIndex + 1) return []
+                        if (pos.slot !== hourIndex) return []
+                        return [{ item, pos }]
                       })
-                      .filter(Boolean)
                       .map(({ item, pos }) => (
                         <div
                           key={item.item_id}
@@ -117,7 +120,10 @@ export function TimetableGrid({ items, onItemClick, onPinToggle, editable = fals
                                 {item.start} - {item.end}
                               </div>
                             </div>
-                            {editable && onPinToggle && (
+                            {/* 잠금 variant는 자물쇠 아이콘, 일반은 핀 아이콘 */}
+                            {isLockedVariant(item) ? (
+                              <Lock className="w-2.5 h-2.5 flex-shrink-0 ml-1 opacity-80" />
+                            ) : editable && onPinToggle ? (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
@@ -131,7 +137,7 @@ export function TimetableGrid({ items, onItemClick, onPinToggle, editable = fals
                               >
                                 <Pin className={`w-2.5 h-2.5 ${item.is_pinned ? 'fill-current' : ''}`} />
                               </button>
-                            )}
+                            ) : null}
                           </div>
                         </div>
                       ))}
