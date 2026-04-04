@@ -4,6 +4,7 @@ import com.smartsejong.api.common.enums.CourseCategory;
 import com.smartsejong.api.common.enums.DayOfWeek;
 import com.smartsejong.api.domain.course.dto.CourseResponse;
 import com.smartsejong.api.domain.course.dto.CourseUploadResult;
+import com.smartsejong.api.domain.course.dto.GroupedSectionResponse;
 import com.smartsejong.api.domain.course.dto.SectionResponse;
 import com.smartsejong.api.domain.course.entity.Course;
 import com.smartsejong.api.domain.course.entity.Section;
@@ -24,8 +25,10 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -99,6 +102,44 @@ public class CourseServiceImpl implements CourseService {
     public List<SectionResponse> searchSections(String courseName, String professor, DayOfWeek dayOfWeek) {
         return sectionRepository.searchSections(courseName, professor, dayOfWeek).stream()
                 .map(SectionResponse::from)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<GroupedSectionResponse> searchGroupedSections(String q) {
+        List<Section> sections = (q == null || q.isBlank())
+                ? sectionRepository.findAllWithCourse()
+                : sectionRepository.searchByKeyword(q.trim());
+
+        // courseId + sectionNumber + professor 기준으로 그룹핑
+        Map<String, List<Section>> grouped = sections.stream()
+                .collect(Collectors.groupingBy(s ->
+                        s.getCourse().getId() + "_" + s.getSectionNumber() + "_" + s.getProfessor()));
+
+        return grouped.values().stream()
+                .map(group -> {
+                    Section rep = group.get(0);
+                    List<GroupedSectionResponse.SectionTimeDto> times = group.stream()
+                            .filter(s -> s.getDayOfWeek() != null && s.getStartTime() != null && s.getEndTime() != null)
+                            .map(s -> GroupedSectionResponse.SectionTimeDto.builder()
+                                    .dayOfWeekKor(s.getDayOfWeek().getKor())
+                                    .startTime(s.getStartTime().format(DateTimeFormatter.ofPattern("HH:mm")))
+                                    .endTime(s.getEndTime().format(DateTimeFormatter.ofPattern("HH:mm")))
+                                    .build())
+                            .toList();
+                    long minId = group.stream().mapToLong(Section::getId).min().orElse(rep.getId());
+                    return GroupedSectionResponse.builder()
+                            .sectionId(minId)
+                            .courseId(rep.getCourse().getId())
+                            .courseCode(rep.getCourse().getCourseCode())
+                            .courseName(rep.getCourse().getName())
+                            .credits(rep.getCourse().getCredits())
+                            .sectionNumber(rep.getSectionNumber())
+                            .professor(rep.getProfessor())
+                            .times(times)
+                            .build();
+                })
                 .toList();
     }
 

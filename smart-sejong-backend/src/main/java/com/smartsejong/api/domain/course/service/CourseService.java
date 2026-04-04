@@ -4,6 +4,7 @@ import com.smartsejong.api.common.enums.CourseCategory;
 import com.smartsejong.api.common.enums.DayOfWeek;
 import com.smartsejong.api.domain.course.dto.CourseResponse;
 import com.smartsejong.api.domain.course.dto.CourseUploadResult;
+import com.smartsejong.api.domain.course.dto.GroupedSectionResponse;
 import com.smartsejong.api.domain.course.dto.SectionResponse;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -28,6 +29,8 @@ public interface CourseService {
     SectionResponse getSectionById(Long id);
 
     List<SectionResponse> searchSections(String courseName, String professor, DayOfWeek dayOfWeek);
+
+    List<GroupedSectionResponse> searchGroupedSections(String q);
 
     // Excel 업로드
     CourseUploadResult uploadCoursesFromExcel(MultipartFile file);

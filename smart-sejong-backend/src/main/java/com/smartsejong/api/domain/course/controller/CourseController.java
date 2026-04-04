@@ -5,6 +5,7 @@ import com.smartsejong.api.common.enums.CourseCategory;
 import com.smartsejong.api.common.enums.DayOfWeek;
 import com.smartsejong.api.domain.course.dto.CourseResponse;
 import com.smartsejong.api.domain.course.dto.CourseUploadResult;
+import com.smartsejong.api.domain.course.dto.GroupedSectionResponse;
 import com.smartsejong.api.domain.course.dto.SectionResponse;
 import com.smartsejong.api.domain.course.service.CourseService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -79,6 +80,14 @@ public class CourseController {
             @Parameter(description = "분반 ID") @PathVariable Long id) {
         SectionResponse section = courseService.getSectionById(id);
         return ResponseEntity.ok(CommonResponse.success(section));
+    }
+
+    @Operation(summary = "분반 통합 검색 (그룹핑)", description = "키워드로 과목명 또는 교수명 검색, 동일 분반 그룹핑하여 반환")
+    @GetMapping("/sections/grouped-search")
+    public ResponseEntity<CommonResponse<List<GroupedSectionResponse>>> searchGroupedSections(
+            @Parameter(description = "검색 키워드 (과목명 또는 교수명)") @RequestParam(required = false) String q) {
+        List<GroupedSectionResponse> sections = courseService.searchGroupedSections(q);
+        return ResponseEntity.ok(CommonResponse.success(sections));
     }
 
     @Operation(summary = "분반 검색", description = "과목명, 교수명, 요일로 검색")

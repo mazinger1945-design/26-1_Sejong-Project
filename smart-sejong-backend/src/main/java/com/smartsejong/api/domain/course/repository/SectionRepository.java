@@ -32,4 +32,8 @@ public interface SectionRepository extends JpaRepository<Section, Long> {
     List<Section> searchSections(@Param("courseName") String courseName,
                                  @Param("professor") String professor,
                                  @Param("dayOfWeek") DayOfWeek dayOfWeek);
+
+    @Query("SELECT s FROM Section s JOIN FETCH s.course c WHERE " +
+           "c.name LIKE %:q% OR s.professor LIKE %:q%")
+    List<Section> searchByKeyword(@Param("q") String q);
 }
