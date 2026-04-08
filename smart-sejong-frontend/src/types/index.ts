@@ -1,3 +1,22 @@
+// ── 백엔드 GroupedSectionResponse 원본 타입 ─────────────────────
+export interface GroupedSectionRaw {
+  sectionId: number
+  courseId: number
+  courseCode: string
+  courseName: string
+  credits: number
+  sectionNumber: string
+  professor: string | null
+  categoryDescription: string | null  // "전공필수", "전공선택", "교양선택" 등
+  college: string | null              // 개설 단과대 (예: "인공지능융합대학")
+  department: string | null           // 개설 학과/전공 (예: "AI로봇학과")
+  times: {
+    dayOfWeekKor: string   // "월", "화", ...
+    startTime: string      // "09:00"
+    endTime: string        // "10:30"
+  }[]
+}
+
 // Auth Types
 export interface AuthResponse {
   accessToken: string

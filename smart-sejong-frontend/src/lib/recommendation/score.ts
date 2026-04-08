@@ -1,245 +1,244 @@
 /**
- * score.ts
- *
- * 소프트 조건 점수 계산 모듈.
- *
- * 점수 체계 (총 100점):
- *   - 공강 희망 요일 만족:     30점
- *   - 시간대 선호 반영:        25점
- *   - 강의 사이 공백 허용:     20점
- *   - 점심시간 확보:           15점
- *   - 온/오프라인 선호:        10점
+ * 소프트 조건 점수화
+ * 하드 조건 통과한 완성 시간표에 대해서만 호출
  */
 
-import {
-  SCORE_WEIGHTS,
-  MORNING,
-  AFTERNOON,
-  EVENING,
-  LUNCH,
-  GAP_MINUTES,
-  SLOT_MIN,
-  DAY_KEYS,
-} from './constants'
-import {
-  buildMask,
-  isDayEmpty,
-  slotCount,
-  occupiedRanges,
-  merge,
-} from './timeMask'
-import type {
-  SectionCandidate,
-  FixedSection,
-  CustomBlock,
-  RecommendationConditions,
-  ScoreBreakdown,
-  DayMask,
-  GapLevel,
-} from './types'
+import { SCORE_WEIGHTS, DAY_KEYS, MORNING_SLOTS, AFTERNOON_SLOTS, EVENING_SLOTS, GAP_LEVEL_MINUTES } from './constants'
+import type { RSection, CustomBlock, RecommendationFilters, ScoreBreakdown, Day } from './types'
+import { mergeIntervals } from './timeMask'
 
-/**
- * 완성된 시간표(고정 항목 + 선택 분반)에 대해 소프트 조건 점수를 계산.
- * 하드 조건은 이미 통과된 상태라고 가정.
- */
-export function scoreSchedule(
-  selectedSections: SectionCandidate[],
-  conditions: RecommendationConditions,
-  fixedSections: FixedSection[],
-  fixedCustomBlocks: CustomBlock[]
-): ScoreBreakdown {
-  // 전체 점유 마스크 = 고정 분반 + 고정 일정 + 선택 분반
-  let combinedMask: DayMask = {}
-  for (const fs of fixedSections) combinedMask = merge(combinedMask, fs.mask)
-  for (const cb of fixedCustomBlocks) combinedMask = merge(combinedMask, cb.mask)
-  for (const s of selectedSections) combinedMask = merge(combinedMask, buildMask(s.meetingTimes))
+// ── 유틸 ────────────────────────────────────────────────────
 
-  // 점수 계산에 쓸 전체 분반 목록 (고정 포함)
-  const allSections = [...fixedSections.map((fs) => fs.section), ...selectedSections]
-
-  const freeDayScore = calcFreeDayScore(combinedMask, conditions.preferredFreeDays)
-  const timePreferenceScore = calcTimePreferenceScore(combinedMask, conditions.timePreference)
-  const gapScore = calcGapScore(combinedMask, conditions.allowedGapLevel)
-  const lunchScore = calcLunchScore(combinedMask, conditions.needsLunchBreak)
-  const deliveryScore = calcDeliveryScore(allSections, conditions.deliveryPreference)
-
-  const total = freeDayScore + timePreferenceScore + gapScore + lunchScore + deliveryScore
-  return { freeDayScore, timePreferenceScore, gapScore, lunchScore, deliveryScore, total }
-}
-
-// ── 개별 점수 계산 함수 ─────────────────────────────────────
-
-/** 공강 희망 요일 만족도 */
-function calcFreeDayScore(mask: DayMask, preferredFreeDays: string[]): number {
-  if (preferredFreeDays.length === 0) return SCORE_WEIGHTS.FREE_DAY
-  const freeCount = preferredFreeDays.filter((d) => isDayEmpty(mask, d)).length
-  return Math.round((freeCount / preferredFreeDays.length) * SCORE_WEIGHTS.FREE_DAY)
-}
-
-/**
- * 시간대 선호 반영 점수
- * PREFER 구간에 수업이 많을수록 가점, DISLIKE 구간에 많을수록 감점
- */
-function calcTimePreferenceScore(
-  mask: DayMask,
-  timePreference: RecommendationConditions['timePreference']
-): number {
-  const totalSlots = DAY_KEYS.reduce((sum, d) => {
-    const m = mask[d] ?? 0
-    let cnt = 0
-    for (let i = 0; i < 24; i++) if (m & (1 << i)) cnt++
-    return sum + cnt
-  }, 0)
-
-  if (totalSlots === 0) return SCORE_WEIGHTS.TIME_PREFERENCE
-
-  const zones = [
-    { range: MORNING, pref: timePreference.morning },
-    { range: AFTERNOON, pref: timePreference.afternoon },
-    { range: EVENING, pref: timePreference.evening },
-  ]
-
-  let score = 0
-  const perZone = SCORE_WEIGHTS.TIME_PREFERENCE / 3
-
-  for (const { range, pref } of zones) {
-    if (pref === 'NEUTRAL') {
-      score += perZone
-      continue
+/** 요일에 수업이 있는지 (customBlocks 포함 여부 제어) */
+function getSectionMinutesByDay(sections: RSection[]): Map<Day, { start: number; end: number }[]> {
+  const map = new Map<Day, { start: number; end: number }[]>()
+  for (const sec of sections) {
+    for (const mt of sec.meetingTimes) {
+      if (!map.has(mt.day)) map.set(mt.day, [])
+      map.get(mt.day)!.push({ start: mt.startMinute, end: mt.endMinute })
     }
-    const zoneSlots = DAY_KEYS.reduce(
-      (sum, d) => sum + slotCount(mask, d, range.start, range.end),
-      0
-    )
-    const ratio = zoneSlots / totalSlots
-    // PREFER: ratio 높을수록 가점 / DISLIKE: ratio 높을수록 감점
-    const factor = pref === 'PREFER' ? 0.5 + ratio * 0.5 : 0.5 - ratio * 0.5
-    score += perZone * factor
   }
-
-  return Math.round(Math.max(0, score))
+  return map
 }
 
-/**
- * 강의 사이 공백 허용 시간 만족도.
- * 일별로 연속 블록 사이의 gap을 계산하여 허용 범위와 비교.
- */
-function calcGapScore(mask: DayMask, allowedGapLevel: GapLevel): number {
-  const maxGap = GAP_MINUTES[allowedGapLevel]
-  const ranges = occupiedRanges(mask)
+function getAllBlocksByDay(
+  sections: RSection[],
+  customBlocks: CustomBlock[],
+): Map<Day, { start: number; end: number }[]> {
+  const map = getSectionMinutesByDay(sections)
+  for (const blk of customBlocks) {
+    if (!map.has(blk.day)) map.set(blk.day, [])
+    map.get(blk.day)!.push({ start: blk.startMinute, end: blk.endMinute })
+  }
+  return map
+}
 
-  let checks = 0
-  let violations = 0
+// ── 각 점수 계산 ─────────────────────────────────────────────
+
+function scoreFreeDay(
+  filters: RecommendationFilters,
+  sections: RSection[],
+): number {
+  const { preferredFreeDays } = filters
+  if (!preferredFreeDays.length) return 0
+
+  const byDay = getSectionMinutesByDay(sections)
+  let matched = 0
+  for (const d of preferredFreeDays) {
+    const intervals = byDay.get(d)
+    if (!intervals || intervals.length === 0) matched++
+  }
+  return SCORE_WEIGHTS.FREE_DAY * (matched / preferredFreeDays.length)
+}
+
+function scoreTimePreference(
+  filters: RecommendationFilters,
+  sections: RSection[],
+): number {
+  const { timePreference } = filters
+  const { morning, afternoon, evening } = timePreference
+
+  // active bands (NEUTRAL 제외)
+  const bands: Array<{ pref: 'PREFER' | 'DISLIKE'; slots: { start: number; end: number } }> = []
+  if (morning !== 'NEUTRAL') bands.push({ pref: morning as 'PREFER' | 'DISLIKE', slots: MORNING_SLOTS })
+  if (afternoon !== 'NEUTRAL') bands.push({ pref: afternoon as 'PREFER' | 'DISLIKE', slots: AFTERNOON_SLOTS })
+  if (evening !== 'NEUTRAL') bands.push({ pref: evening as 'PREFER' | 'DISLIKE', slots: EVENING_SLOTS })
+
+  if (!bands.length) return 0
+
+  // 전체 수업 시간(분) 계산
+  let totalMin = 0
+  const slotMin = 15 // 슬롯 단위(분)
+  const minutesByBand = { morning: 0, afternoon: 0, evening: 0 }
+
+  for (const sec of sections) {
+    for (const mt of sec.meetingTimes) {
+      const duration = mt.endMinute - mt.startMinute
+      totalMin += duration
+
+      // slot 기반 대신 분 범위로 band 판정
+      const morningEnd = 12 * 60
+      const afternoonEnd = 17 * 60
+      const eveningEnd = 21 * 60
+      const start = mt.startMinute
+      const end = mt.endMinute
+
+      // morning overlap [09:00, 12:00)
+      const mStart = Math.max(start, 9 * 60), mEnd = Math.min(end, morningEnd)
+      if (mEnd > mStart) minutesByBand.morning += mEnd - mStart
+      // afternoon overlap [12:00, 17:00)
+      const aStart = Math.max(start, morningEnd), aEnd = Math.min(end, afternoonEnd)
+      if (aEnd > aStart) minutesByBand.afternoon += aEnd - aStart
+      // evening overlap [17:00, 21:00)
+      const eStart = Math.max(start, afternoonEnd), eEnd = Math.min(end, eveningEnd)
+      if (eEnd > eStart) minutesByBand.evening += eEnd - eStart
+    }
+  }
+  void slotMin // suppress unused
+
+  if (totalMin === 0) return 0
+
+  const bandWeight = SCORE_WEIGHTS.TIME_PREFERENCE / bands.length
+  let score = 0
+  for (const { pref, slots: _slots } of bands) {
+    const bandKey = _slots === MORNING_SLOTS ? 'morning'
+      : _slots === AFTERNOON_SLOTS ? 'afternoon' : 'evening'
+    const ratio = minutesByBand[bandKey] / totalMin
+    const satisfaction = pref === 'PREFER' ? ratio : (1 - ratio)
+    score += bandWeight * satisfaction
+  }
+  return score
+}
+
+function scoreGap(
+  filters: RecommendationFilters,
+  sections: RSection[],
+  customBlocks: CustomBlock[],
+): number {
+  const { allowedGapLevel } = filters
+  const allowedMinutes = GAP_LEVEL_MINUTES[allowedGapLevel]
+
+  if (allowedGapLevel === 3) return SCORE_WEIGHTS.GAP
+
+  const byDay = getAllBlocksByDay(sections, customBlocks)
+  let totalGaps = 0
+  let oversizeGaps = 0
 
   for (const day of DAY_KEYS) {
-    const dayRanges = ranges[day]
-    if (!dayRanges || dayRanges.length <= 1) continue
-
-    for (let i = 0; i + 1 < dayRanges.length; i++) {
-      const gapMin = (dayRanges[i + 1].s - dayRanges[i].e) * SLOT_MIN
-      checks++
-      if (allowedGapLevel === 0) {
-        // 연강 선호: gap이 0이 아니면 위반
-        if (gapMin > 0) violations++
-      } else if (maxGap < 999_999) {
-        if (gapMin > maxGap) violations++
-      }
-      // allowedGapLevel === 3 (제한 없음): 위반 없음
+    const intervals = byDay.get(day)
+    if (!intervals || intervals.length < 2) continue
+    const merged = mergeIntervals(intervals, [])
+    for (let i = 1; i < merged.length; i++) {
+      const gap = merged[i].start - merged[i - 1].end
+      totalGaps++
+      if (gap > allowedMinutes) oversizeGaps++
     }
   }
 
-  if (checks === 0) return SCORE_WEIGHTS.GAP
-  return Math.round(((checks - violations) / checks) * SCORE_WEIGHTS.GAP)
+  if (totalGaps === 0) return SCORE_WEIGHTS.GAP
+  return SCORE_WEIGHTS.GAP * (1 - oversizeGaps / totalGaps)
 }
 
-/**
- * 점심시간 확보 점수 (12:00~14:00 중 1시간 이상 여유)
- * needsLunchBreak = false 이면 만점 반환
- */
-function calcLunchScore(mask: DayMask, needsLunchBreak: boolean): number {
-  if (!needsLunchBreak) return SCORE_WEIGHTS.LUNCH
-
-  const activeDays = DAY_KEYS.filter((d) => mask[d])
-  if (activeDays.length === 0) return SCORE_WEIGHTS.LUNCH
-
-  let satisfied = 0
-  for (const day of activeDays) {
-    const m = mask[day] ?? 0
-    // 점심 슬롯(6~9) 중 연속 2슬롯(=1시간) 이상 비어 있으면 만족
-    for (let s = LUNCH.start; s + 1 < LUNCH.end; s++) {
-      if (!(m & (1 << s)) && !(m & (1 << (s + 1)))) {
-        satisfied++
-        break
-      }
-    }
-  }
-  return Math.round((satisfied / activeDays.length) * SCORE_WEIGHTS.LUNCH)
-}
-
-/** 온/오프라인 선호 점수 */
-function calcDeliveryScore(
-  sections: SectionCandidate[],
-  preference: RecommendationConditions['deliveryPreference']
+function scoreLunch(
+  filters: RecommendationFilters,
+  sections: RSection[],
+  customBlocks: CustomBlock[],
 ): number {
-  if (preference === 'ANY' || sections.length === 0) return SCORE_WEIGHTS.DELIVERY
+  if (!filters.needsLunchBreak) return 0
 
-  const onlineCount = sections.filter((s) => s.deliveryMode === 'ONLINE').length
-  const offlineCount = sections.filter((s) => s.deliveryMode === 'OFFLINE').length
-  const total = sections.length
+  const byDay = getAllBlocksByDay(sections, customBlocks)
+  let activeDays = 0
+  let satisfiedDays = 0
 
-  if (preference === 'ONLINE_PREFER') {
-    return Math.round((onlineCount / total) * SCORE_WEIGHTS.DELIVERY)
+  const lunchStart = 12 * 60
+  const lunchEnd = 14 * 60
+  const neededFree = 60
+
+  for (const day of DAY_KEYS) {
+    const intervals = byDay.get(day)
+    if (!intervals || intervals.length === 0) continue
+    activeDays++
+
+    const merged = mergeIntervals(intervals, [])
+    // 점심 구간 내 빈 구간 계산
+    let freeStart = lunchStart
+    let maxFree = 0
+    for (const seg of merged) {
+      if (seg.start >= lunchEnd) break
+      const occupyStart = Math.max(seg.start, lunchStart)
+      const occupyEnd = Math.min(seg.end, lunchEnd)
+      if (occupyStart > freeStart) maxFree = Math.max(maxFree, occupyStart - freeStart)
+      if (occupyEnd > freeStart) freeStart = occupyEnd
+    }
+    maxFree = Math.max(maxFree, lunchEnd - freeStart)
+    if (maxFree >= neededFree) satisfiedDays++
   }
-  return Math.round((offlineCount / total) * SCORE_WEIGHTS.DELIVERY)
+
+  if (activeDays === 0) return SCORE_WEIGHTS.LUNCH
+  return SCORE_WEIGHTS.LUNCH * (satisfiedDays / activeDays)
 }
 
+function scoreDelivery(
+  filters: RecommendationFilters,
+  sections: RSection[],
+): number {
+  const { deliveryPreference } = filters
+  if (deliveryPreference === 'ANY') return 0
+
+  const totalCredits = sections.reduce((s, r) => s + r.credits, 0)
+  if (totalCredits === 0) return 0
+
+  let onlineCredits = 0
+  let offlineCredits = 0
+  let mixedCredits = 0
+  for (const sec of sections) {
+    if (sec.deliveryMode === 'ONLINE') onlineCredits += sec.credits
+    else if (sec.deliveryMode === 'OFFLINE') offlineCredits += sec.credits
+    else if (sec.deliveryMode === 'MIXED') mixedCredits += sec.credits
+  }
+
+  const satisfaction =
+    deliveryPreference === 'ONLINE_PREFER'
+      ? (onlineCredits + 0.5 * mixedCredits) / totalCredits
+      : (offlineCredits + 0.5 * mixedCredits) / totalCredits
+
+  return SCORE_WEIGHTS.DELIVERY * satisfaction
+}
+
+// ── 통합 점수 계산 ───────────────────────────────────────────
+
 /**
- * 추천 이유 텍스트 생성.
- * 점수 계산 결과를 사람이 읽기 쉬운 문장으로 변환.
+ * 활성화된 항목 가중치 합 계산
+ * ※ majorMinCount는 엔진에서 하드 조건으로 처리하므로 소프트 점수에서 제외
  */
-export function buildReasons(
-  selectedSections: SectionCandidate[],
-  conditions: RecommendationConditions,
-  fixedSections: FixedSection[],
-  fixedCustomBlocks: CustomBlock[],
-  score: ScoreBreakdown
-): string[] {
-  const reasons: string[] = []
-
-  let combinedMask: DayMask = {}
-  for (const fs of fixedSections) combinedMask = merge(combinedMask, fs.mask)
-  for (const cb of fixedCustomBlocks) combinedMask = merge(combinedMask, cb.mask)
-  for (const s of selectedSections) combinedMask = merge(combinedMask, buildMask(s.meetingTimes))
-
-  // 공강 요일
-  const freeDays = conditions.preferredFreeDays.filter((d) => isDayEmpty(combinedMask, d))
-  if (freeDays.length > 0) reasons.push(`${freeDays.join(', ')}요일 공강 반영`)
-
-  // 시간대
-  const { morning, afternoon, evening } = conditions.timePreference
-  if (morning === 'PREFER') reasons.push('오전 수업 위주')
-  if (afternoon === 'PREFER') reasons.push('오후 수업 위주')
-  if (evening === 'DISLIKE') reasons.push('저녁 수업 최소화')
-
-  // 공백
-  const gapLabels: Record<number, string> = {
-    0: '연강 위주',
-    1: '강의 사이 공백 1시간 이하',
-    2: '강의 사이 공백 2시간 이하',
-    3: '강의 사이 공백 여유 있음',
+function activeWeightSum(filters: RecommendationFilters): number {
+  let sum = SCORE_WEIGHTS.GAP // 항상 활성
+  if (filters.preferredFreeDays.length > 0) sum += SCORE_WEIGHTS.FREE_DAY
+  const { morning, afternoon, evening } = filters.timePreference
+  if (morning !== 'NEUTRAL' || afternoon !== 'NEUTRAL' || evening !== 'NEUTRAL') {
+    sum += SCORE_WEIGHTS.TIME_PREFERENCE
   }
-  if (score.gapScore >= SCORE_WEIGHTS.GAP * 0.8) reasons.push(gapLabels[conditions.allowedGapLevel])
+  if (filters.needsLunchBreak) sum += SCORE_WEIGHTS.LUNCH
+  if (filters.deliveryPreference !== 'ANY') sum += SCORE_WEIGHTS.DELIVERY
+  return sum
+}
 
-  // 점심
-  if (conditions.needsLunchBreak && score.lunchScore >= SCORE_WEIGHTS.LUNCH * 0.6) {
-    reasons.push('점심시간 확보')
-  }
+export function scoreSchedule(
+  allSections: RSection[],  // fixed + newly selected
+  customBlocks: CustomBlock[],
+  filters: RecommendationFilters,
+): ScoreBreakdown {
+  const freeDay = scoreFreeDay(filters, allSections)
+  const timePreference = scoreTimePreference(filters, allSections)
+  const gap = scoreGap(filters, allSections, customBlocks)
+  const lunch = scoreLunch(filters, allSections, customBlocks)
+  const delivery = scoreDelivery(filters, allSections)
+  // major은 엔진에서 하드 조건으로 처리 → 소프트 점수는 0 (표시용)
+  const major = 0
 
-  // 온/오프라인
-  if (conditions.deliveryPreference === 'ONLINE_PREFER') reasons.push('온라인 비중이 높음')
-  if (conditions.deliveryPreference === 'OFFLINE_PREFER') reasons.push('오프라인 비중이 높음')
+  const earned = freeDay + timePreference + gap + lunch + delivery
+  const maxPossible = activeWeightSum(filters)
+  const total = maxPossible > 0 ? Math.round((earned / maxPossible) * 100) : 0
 
-  if (reasons.length === 0) reasons.push('조건을 고려한 최적 조합')
-
-  return reasons
+  return { freeDay, timePreference, gap, lunch, delivery, major, total }
 }

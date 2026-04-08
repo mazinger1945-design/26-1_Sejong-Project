@@ -20,6 +20,9 @@ public class GroupedSectionResponse {
     private int credits;
     private String sectionNumber;
     private String professor;
+    private String categoryDescription;  // 예: "전공필수", "교양선택"
+    private String college;              // 개설 단과대 (예: "인공지능융합대학")
+    private String department;           // 개설 학과/전공 (예: "AI로봇학과")
     private List<SectionTimeDto> times;
 
     @Getter

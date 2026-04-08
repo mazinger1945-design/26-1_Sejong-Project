@@ -1,176 +1,353 @@
 /**
- * engine.ts
+ * 추천 엔진 (DFS + 백트래킹)
  *
- * 규칙 기반 시간표 추천 엔진
- *
- * 알고리즘:
- *   1. 하드 조건 검증 (validate)
- *   2. 후보 풀 필터링 + 과목 그룹화 (filter)
- *   3. DFS / 백트래킹으로 조합 탐색 (branch-and-bound pruning 적용)
- *   4. 완성 시간표마다 소프트 조건 점수 계산 (score)
- *   5. 상위 K개 결과 유지 (min-heap 대신 정렬 배열 사용)
- *
- * 시간 충돌 판정: 요일별 비트마스크 AND 연산 O(days=5)
- * 탐색 복잡도:   O(prod(분반 수 per 과목)) - pruning으로 대폭 축소
+ * 개선사항:
+ * 1. 다양성 보장: courseId 집합이 동일한 결과는 topK에서 하나만 유지 (점수 높은 것 유지)
+ * 2. 전공 과목 수 하드 조건: majorMinCount 미달 조합은 즉시 제외
+ * 3. 전공 과목 수 조기 가지치기: 남은 그룹을 다 전공으로 담아도 부족하면 가지치기
+ * 4. 탐색 순서: 전공 과목 그룹 먼저 탐색 → 전공 포함 조합이 빠르게 topK에 진입
+ * 5. evalCount는 전공 조건 통과 후 증가 → 전공 미달 조합에 평가 횟수 낭비 안 함
  */
 
-import { TOP_K, MAX_COMBINATIONS } from './constants'
-import { buildMask, conflicts, merge } from './timeMask'
-import { validateFixedItems } from './validate'
-import { filterCandidates } from './filter'
-import { scoreSchedule, buildReasons } from './score'
 import type {
-  SectionCandidate,
-  RecommendationConditions,
-  RecommendationResult,
-  CandidateGroup,
-  DayMask,
+  NormalizedSection,
+  RecommendationFilters,
+  RecommendationItem,
+  CourseGroup,
 } from './types'
+import { filterCandidates, buildCourseGroups, buildSuffixMaxCredits } from './filter'
+import { buildInitialMask } from './validate'
+import { scoreSchedule } from './score'
+import { buildRecommendationReasons } from './reasons'
+import { hasMaskConflict, mergeWeeklyMasks } from './timeMask'
+import { TOP_K, MAX_EVAL } from './constants'
+import { hasMajorClassificationContext, isMajorCourseForUser } from './majorDetermination'
 
-interface GenerateOutput {
-  results: RecommendationResult[]
-  errors: string[]           // 하드 조건 검증 오류 → 추천 불가
-  noResultReasons: string[]  // 결과 0개일 때 안내 메시지
+let evalCount = 0
+const DIVERSITY_POOL_SIZE = TOP_K * 8
+const DIVERSITY_PENALTY = 24
+
+// ── 다양성 보장 ───────────────────────────────────────────────
+
+function getCourseIdKey(item: RecommendationItem): string {
+  return item.sections
+    .map((s) => s.courseId)
+    .sort()
+    .join(',')
 }
 
-/**
- * 메인 추천 함수.
- * @param pool    추천 대상 후보 분반 목록 (전체 강의 무차별 탐색 금지)
- * @param conditions 사용자 조건 전체
- */
-export function generateRecommendations(
-  pool: SectionCandidate[],
-  conditions: RecommendationConditions
-): GenerateOutput {
-  const { fixedSections, fixedCustomBlocks, creditRange } = conditions
+/** top-K 삽입 (courseId 집합 기준 중복 제거) */
+function pushTopK(
+  candidatePool: RecommendationItem[],
+  candidatePoolKeys: Set<string>,
+  item: RecommendationItem,
+): void {
+  const key = getCourseIdKey(item)
 
-  // ── 1단계: 하드 조건 사전 검증 ──────────────────────────────
-  const validationErrors = validateFixedItems(fixedSections, fixedCustomBlocks, creditRange)
-  if (validationErrors.length > 0) {
-    return {
-      results: [],
-      errors: validationErrors.map((e) => e.message),
-      noResultReasons: [],
+  if (candidatePoolKeys.has(key)) {
+    const existIdx = candidatePool.findIndex((x) => getCourseIdKey(x) === key)
+    if (
+      existIdx >= 0 &&
+      item.scoreBreakdown.total > candidatePool[existIdx].scoreBreakdown.total
+    ) {
+      candidatePool[existIdx] = item
+      candidatePool.sort((a, b) => b.scoreBreakdown.total - a.scoreBreakdown.total)
+    }
+    return
+  }
+
+  candidatePool.push(item)
+  candidatePoolKeys.add(key)
+  candidatePool.sort((a, b) => b.scoreBreakdown.total - a.scoreBreakdown.total)
+
+  if (candidatePool.length > DIVERSITY_POOL_SIZE) {
+    const removed = candidatePool.pop()!
+    candidatePoolKeys.delete(getCourseIdKey(removed))
+  }
+}
+
+function getCourseIdSet(item: RecommendationItem): Set<string> {
+  return new Set(item.sections.map((section) => section.courseId))
+}
+
+function getScheduleSimilarity(left: RecommendationItem, right: RecommendationItem): number {
+  const leftIds = getCourseIdSet(left)
+  const rightIds = getCourseIdSet(right)
+
+  if (leftIds.size === 0 && rightIds.size === 0) {
+    return 1
+  }
+
+  let intersection = 0
+  for (const courseId of leftIds) {
+    if (rightIds.has(courseId)) {
+      intersection += 1
     }
   }
 
-  // ── 2단계: 후보 풀 필터링 & 그룹화 ─────────────────────────
-  const candidateGroups = filterCandidates({
-    pool,
+  const union = new Set([...leftIds, ...rightIds]).size
+  return union === 0 ? 0 : intersection / union
+}
+
+function selectDiverseRecommendations(candidatePool: RecommendationItem[]): RecommendationItem[] {
+  if (candidatePool.length <= TOP_K) {
+    return [...candidatePool]
+  }
+
+  const remaining = [...candidatePool].sort(
+    (a, b) => b.scoreBreakdown.total - a.scoreBreakdown.total,
+  )
+  const selected: RecommendationItem[] = [remaining.shift()!]
+
+  while (selected.length < TOP_K && remaining.length > 0) {
+    let bestIdx = 0
+    let bestAdjustedScore = Number.NEGATIVE_INFINITY
+
+    for (let i = 0; i < remaining.length; i++) {
+      const candidate = remaining[i]
+      const maxSimilarity = Math.max(
+        ...selected.map((picked) => getScheduleSimilarity(candidate, picked)),
+      )
+      const adjustedScore = candidate.scoreBreakdown.total - maxSimilarity * DIVERSITY_PENALTY
+
+      if (adjustedScore > bestAdjustedScore) {
+        bestAdjustedScore = adjustedScore
+        bestIdx = i
+      }
+    }
+
+    selected.push(remaining.splice(bestIdx, 1)[0])
+  }
+
+  return selected
+}
+
+// ── 전공 과목 수 헬퍼 ─────────────────────────────────────────
+
+/**
+ * 분반이 사용자의 전공 과목인지 판정합니다.
+ * 로그인된 사용자의 학과 정보가 있을 때만 전공 판정을 수행합니다.
+ */
+export function isMajorSection(sec: NormalizedSection, userMajor?: string): boolean {
+  if (!hasMajorClassificationContext(userMajor)) {
+    return false
+  }
+
+  return isMajorCourseForUser(
+    sec.college ?? '',
+    sec.department ?? '',
+    sec.categoryDescription ?? '',
+    userMajor ?? '',
+  )
+}
+
+/** 각 index 이후에서 추가 가능한 최대 전공 과목 수 suffix 배열 */
+function buildSuffixMaxMajorCount(
+  groups: CourseGroup[],
+  isMajor: (sec: NormalizedSection) => boolean,
+): number[] {
+  const n = groups.length
+  const suffix = new Array<number>(n + 1).fill(0)
+  for (let i = n - 1; i >= 0; i--) {
+    // 해당 그룹에 전공 분반이 하나라도 있으면 1 기여
+    const hasMajor = groups[i].sections.some(isMajor) ? 1 : 0
+    suffix[i] = suffix[i + 1] + hasMajor
+  }
+  return suffix
+}
+
+// ── DFS ──────────────────────────────────────────────────────
+
+function dfs(
+  index: number,
+  currentMask: bigint[],
+  selectedSections: NormalizedSection[],
+  currentCredits: number,
+  currentMajorCount: number,   // 지금까지 선택된 전공 과목 수
+  groups: CourseGroup[],
+  suffix: number[],
+  suffixMajorCount: number[], // 각 index 이후에서 추가 가능한 최대 전공 과목 수
+  filters: RecommendationFilters,
+  topK: RecommendationItem[],
+  topKKeys: Set<string>,
+): void {
+  if (evalCount >= MAX_EVAL) return
+
+  const { fixedSections, creditRange, majorMinCount, userMajor } = filters
+  const isMajor = (sec: NormalizedSection) => isMajorSection(sec, userMajor)
+
+  // ── 학점 가지치기 ─────────────────────────────────────────
+  if (currentCredits > creditRange.max) return
+  if (currentCredits + suffix[index] < creditRange.min) return
+
+  // ── 전공 과목 수 조기 가지치기 ────────────────────────────
+  if (majorMinCount > 0) {
+    const maxAchievableMajorCount = currentMajorCount + suffixMajorCount[index]
+    if (maxAchievableMajorCount < majorMinCount) return
+  }
+
+  // ── 탐색 완료 ─────────────────────────────────────────────
+  if (index === groups.length) {
+    if (currentCredits < creditRange.min) return
+
+    // 전공 과목 수 하드 조건 최종 확인
+    if (majorMinCount > 0) {
+      const allSections = [...fixedSections, ...selectedSections]
+      const actualMajorCount = allSections.filter(isMajor).length
+      if (actualMajorCount < majorMinCount) return
+    }
+
+    // 전공 조건 통과 후 평가 카운트 증가
+    evalCount++
+
+    const allSections = [...fixedSections, ...selectedSections]
+    const scoreBreakdown = scoreSchedule(allSections, filters.customBlocks, filters)
+    const reasons = buildRecommendationReasons(allSections, filters, scoreBreakdown)
+
+    const item: RecommendationItem = {
+      sections: selectedSections.map((s) => ({ ...s })),
+      totalCredits: currentCredits,
+      scoreBreakdown,
+      reasons,
+    }
+    pushTopK(topK, topKKeys, item)
+    return
+  }
+
+  const group = groups[index]
+
+  // ── 탐색 순서: 분반 선택 먼저 (스킵 나중) ─────────────────
+  for (const sec of group.sections) {
+    if (hasMaskConflict(currentMask, sec.weeklyMask)) continue
+    if (currentCredits + sec.credits > creditRange.max) continue
+
+    const nextMask = mergeWeeklyMasks(currentMask, sec.weeklyMask)
+    const addedMajor = isMajor(sec) ? 1 : 0
+
+    dfs(
+      index + 1,
+      nextMask,
+      [...selectedSections, sec],
+      currentCredits + sec.credits,
+      currentMajorCount + addedMajor,
+      groups,
+      suffix,
+      suffixMajorCount,
+      filters,
+      topK,
+      topKKeys,
+    )
+
+    if (evalCount >= MAX_EVAL) return
+  }
+
+  // 선택 안 함 (스킵)
+  dfs(
+    index + 1,
+    currentMask,
+    selectedSections,
+    currentCredits,
+    currentMajorCount,
+    groups,
+    suffix,
+    suffixMajorCount,
+    filters,
+    topK,
+    topKKeys,
+  )
+}
+
+// ── 공개 API ─────────────────────────────────────────────────
+
+export interface GenerateResult {
+  recommendations: RecommendationItem[]
+  diagnosisMessage: string | null
+}
+
+export function generateRecommendations(
+  rawCandidateSections: NormalizedSection[],
+  filters: RecommendationFilters,
+): GenerateResult {
+  evalCount = 0
+
+  const { fixedSections, customBlocks, excludedCourseIds, creditRange, majorMinCount, userMajor } =
+    filters
+
+  if (majorMinCount > 0 && !hasMajorClassificationContext(userMajor)) {
+    return {
+      recommendations: [],
+      diagnosisMessage: '전공 최소 과목 수 조건은 로그인 후 전공 정보가 있을 때만 사용할 수 있습니다.',
+    }
+  }
+
+  const isMajor = (sec: NormalizedSection) => isMajorSection(sec, userMajor)
+
+  const fixedCredits = fixedSections.reduce((s, f) => s + f.credits, 0)
+  const fixedMajorCount = fixedSections.filter(isMajor).length
+
+  const filtered = filterCandidates({
+    candidateSections: rawCandidateSections,
     fixedSections,
-    fixedCustomBlocks,
-    excludedCourseIds: conditions.excludedCourseIds,
+    customBlocks,
+    excludedCourseIds,
   })
 
-  // 고정 분반 학점 합 + 기저 마스크 계산
-  const fixedCredits = fixedSections.reduce((s, fs) => s + fs.section.credits, 0)
-  let baseMask: DayMask = {}
-  for (const fs of fixedSections) baseMask = merge(baseMask, fs.mask)
-  for (const cb of fixedCustomBlocks) baseMask = merge(baseMask, cb.mask)
+  if (filtered.length === 0 && fixedCredits < creditRange.min) {
+    return {
+      recommendations: [],
+      diagnosisMessage:
+        excludedCourseIds.length > 0
+          ? '제외 과목이 많아 추천 가능한 후보가 부족합니다.'
+          : '고정한 분반 또는 일정 때문에 가능한 조합이 없습니다.',
+    }
+  }
 
-  // 그룹별 최대 학점 사전 계산 → pruning 용
-  const groupMaxCredits = candidateGroups.map((g) =>
-    g.sections.reduce((max, s) => Math.max(max, s.credits), 0)
+  const groups = buildCourseGroups(filtered)
+
+  // ★ 전공 과목 그룹을 앞으로 정렬 → 전공 포함 조합 우선 탐색
+  if (majorMinCount > 0) {
+    groups.sort((a, b) => {
+      const aMajor = a.sections.some((s) => isMajor(s)) ? 1 : 0
+      const bMajor = b.sections.some((s) => isMajor(s)) ? 1 : 0
+      return bMajor - aMajor
+    })
+  }
+
+  const suffix = buildSuffixMaxCredits(groups)
+  const suffixMajorCount = buildSuffixMaxMajorCount(groups, isMajor)
+  const initialMask = buildInitialMask(fixedSections, customBlocks)
+
+  const candidatePool: RecommendationItem[] = []
+  const candidatePoolKeys = new Set<string>()
+
+  dfs(
+    0,
+    initialMask,
+    [],
+    fixedCredits,
+    fixedMajorCount,
+    groups,
+    suffix,
+    suffixMajorCount,
+    filters,
+    candidatePool,
+    candidatePoolKeys,
   )
 
-  // ── 3단계: DFS / 백트래킹 ──────────────────────────────────
-  const topResults: RecommendationResult[] = []
-  let combinationsEvaluated = 0
-  let resultId = 0
-
-  /**
-   * DFS 재귀 함수.
-   * @param gIdx   현재 처리할 그룹 인덱스
-   * @param curMask 지금까지 쌓인 시간 마스크 (고정 항목 포함)
-   * @param curCr  현재 누적 학점 (고정 학점 포함)
-   * @param sel    현재 선택된 분반 목록 (고정 제외)
-   */
-  function dfs(
-    gIdx: number,
-    curMask: DayMask,
-    curCr: number,
-    sel: SectionCandidate[]
-  ): void {
-    if (combinationsEvaluated >= MAX_COMBINATIONS) return
-
-    // ── Pruning 1: 남은 그룹 최대 학점을 모두 더해도 min에 못 미치면 중단
-    const remainMax = groupMaxCredits.slice(gIdx).reduce((s, c) => s + c, 0)
-    if (curCr + remainMax < creditRange.min) return
-
-    // ── 리프 노드 판정: 그룹 소진 OR 이미 최대 학점 도달
-    if (gIdx >= candidateGroups.length || curCr >= creditRange.max) {
-      if (curCr < creditRange.min || curCr > creditRange.max) return
-
-      combinationsEvaluated++
-
-      const scoreBreakdown = scoreSchedule(sel, conditions, fixedSections, fixedCustomBlocks)
-
-      // ── Pruning 2: 현재 top-K 최저 점수보다 낮으면 skip (branch & bound)
-      if (topResults.length >= TOP_K) {
-        const minScore = Math.min(...topResults.map((r) => r.scoreBreakdown.total))
-        if (scoreBreakdown.total <= minScore) return
-      }
-
-      const result: RecommendationResult = {
-        id: resultId++,
-        sections: [...sel],
-        totalCredits: curCr,
-        scoreBreakdown,
-        reasons: buildReasons(sel, conditions, fixedSections, fixedCustomBlocks, scoreBreakdown),
-      }
-
-      topResults.push(result)
-      // 점수 내림차순 정렬 후 K개 초과 제거
-      topResults.sort((a, b) => b.scoreBreakdown.total - a.scoreBreakdown.total)
-      if (topResults.length > TOP_K) topResults.pop()
-      return
+  if (candidatePool.length === 0) {
+    let msg = '조건을 만족하는 시간표 조합을 찾지 못했습니다.'
+    if (majorMinCount > 0) {
+      msg = `전공 과목 ${majorMinCount}개 이상 조건을 만족하는 조합이 없습니다. 학점 범위를 넓히거나 전공 과목 수를 줄여보세요.`
+    } else if (fixedCredits + suffix[0] < creditRange.min) {
+      msg = '희망 학점 범위를 조금 낮춰보거나 고정 분반을 더 추가해주세요.'
+    } else if (filtered.length < 3) {
+      msg = '현재 후보 강의들끼리 시간 충돌이 많아 조합을 만들기 어렵습니다.'
     }
-
-    const group: CandidateGroup = candidateGroups[gIdx]
-
-    // 선택지 1: 이 과목 그룹을 선택하지 않음
-    dfs(gIdx + 1, curMask, curCr, sel)
-
-    // 선택지 2: 이 그룹에서 분반 1개 선택
-    for (const section of group.sections) {
-      const sectionMask = buildMask(section.meetingTimes)
-
-      // ── Pruning 3: 시간 충돌 → 해당 분반 skip
-      if (conflicts(curMask, sectionMask)) continue
-
-      // ── Pruning 4: 학점 초과 → 해당 분반 skip
-      if (curCr + section.credits > creditRange.max) continue
-
-      dfs(gIdx + 1, merge(curMask, sectionMask), curCr + section.credits, [...sel, section])
-    }
+    return { recommendations: [], diagnosisMessage: msg }
   }
 
-  dfs(0, baseMask, fixedCredits, [])
-
-  // ── 4단계: 빈 결과 안내 메시지 생성 ────────────────────────
-  const noResultReasons: string[] = []
-  if (topResults.length === 0) {
-    if (pool.length === 0) {
-      noResultReasons.push('추천 후보 강의가 없습니다. 샘플 데이터를 불러오거나 분반을 검색해보세요.')
-    }
-    if (fixedCredits > creditRange.max) {
-      noResultReasons.push('고정 분반 학점이 최대 희망 학점을 이미 초과합니다.')
-    } else if (creditRange.max - fixedCredits < 2) {
-      noResultReasons.push('희망 학점 범위를 조금 넓혀보세요.')
-    }
-    if (conditions.excludedCourseIds.length > 0) {
-      noResultReasons.push('제외 과목이 많아 후보가 부족합니다.')
-    }
-    if (conditions.preferredFreeDays.length >= 4) {
-      noResultReasons.push('공강 희망 요일 조건이 너무 강할 수 있습니다.')
-    }
-    if (fixedSections.length > 0) {
-      noResultReasons.push('고정한 분반/일정 때문에 가능한 조합이 거의 없습니다.')
-    }
-    if (noResultReasons.length === 0) {
-      noResultReasons.push('조건에 맞는 시간표 조합이 없습니다. 조건을 완화해보세요.')
-    }
+  return {
+    recommendations: selectDiverseRecommendations(candidatePool),
+    diagnosisMessage: null,
   }
-
-  return { results: topResults, errors: [], noResultReasons }
 }

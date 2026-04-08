@@ -1,15 +1,51 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import toast from 'react-hot-toast'
-import { Upload, FileSpreadsheet, Award } from 'lucide-react'
+import { Upload, FileSpreadsheet, Award, BookX } from 'lucide-react'
 import { Progress } from '@/components/ui/Progress'
 import { CourseCard } from '@/components/learning/CourseCard'
-import type { CompletedCourseItem, CompletedCourseSummary } from '@/types'
+
+/** 이수과목 정보를 localStorage에 저장 (추천 페이지에서 사용) */
+export const COMPLETED_COURSES_STORAGE_KEY = 'completed_course_info'
+
+export interface CompletedCourseInfo {
+  courseCode: string
+  courseName: string
+}
+
+export function saveCompletedCourseInfo(items: CompletedCourseInfo[]): void {
+  localStorage.setItem(COMPLETED_COURSES_STORAGE_KEY, JSON.stringify(items))
+}
+
+/** @deprecated 하위 호환용 - loadCompletedCourseInfo 사용 권장 */
+export function saveCompletedCourseCodes(_codes: string[]): void {
+  // no-op: saveCompletedCourseInfo 로 대체
+}
+
+export function loadCompletedCourseInfo(): CompletedCourseInfo[] {
+  try {
+    const raw = localStorage.getItem(COMPLETED_COURSES_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as unknown
+    // 구형 string[] 포맷 호환
+    if (Array.isArray(parsed) && typeof parsed[0] === 'string') {
+      return (parsed as string[]).map((c) => ({ courseCode: c, courseName: '' }))
+    }
+    return parsed as CompletedCourseInfo[]
+  } catch {
+    return []
+  }
+}
+
+/** @deprecated 하위 호환 */
+export function loadCompletedCourseCodes(): string[] {
+  return loadCompletedCourseInfo().map((i) => i.courseCode)
+}
 
 const GRADUATION_REQUIREMENTS = {
   total: 130,
-  major: 60,
+  major: 64,
   liberal: 50,
 }
 
@@ -31,10 +67,26 @@ export default function LearningPage() {
     refetchOnWindowFocus: false,
   })
 
+  // 이수과목 목록이 바뀔 때마다 localStorage 갱신 (추천 페이지에서 자동 제외에 사용)
+  useEffect(() => {
+    if (courses && courses.length > 0) {
+      const seen = new Set<string>()
+      const items = courses
+        .filter((c) => c.courseCode)
+        .filter((c) => {
+          if (seen.has(c.courseCode)) return false
+          seen.add(c.courseCode)
+          return true
+        })
+        .map((c) => ({ courseCode: c.courseCode, courseName: c.courseName ?? '' }))
+      saveCompletedCourseInfo(items)
+    }
+  }, [courses])
+
   const uploadMutation = useMutation({
     mutationFn: (file: File) => api.importCompletedCourses(file),
     onSuccess: (data) => {
-      toast.success(`${data.successCount}개 과목이 저장되었습니다.`)
+      toast.success(`${data.successCount}개 과목이 저장되었습니다. 시간표 추천에서 이수과목이 자동 제외됩니다.`)
       queryClient.invalidateQueries({ queryKey: ['completed-courses-summary'] })
       queryClient.invalidateQueries({ queryKey: ['completed-courses'] })
       setFile(null)
@@ -58,23 +110,19 @@ export default function LearningPage() {
           current: summary.total.earnedCredits,
           max: GRADUATION_REQUIREMENTS.total,
           percentage: Math.min((summary.total.earnedCredits / GRADUATION_REQUIREMENTS.total) * 100, 100),
-          avg: summary.total.averageGradePoint,
         },
         major: {
           current: summary.major.earnedCredits,
           max: GRADUATION_REQUIREMENTS.major,
           percentage: Math.min((summary.major.earnedCredits / GRADUATION_REQUIREMENTS.major) * 100, 100),
-          avg: summary.major.averageGradePoint,
         },
         liberal: {
           current: summary.liberal.earnedCredits,
           max: GRADUATION_REQUIREMENTS.liberal,
           percentage: Math.min((summary.liberal.earnedCredits / GRADUATION_REQUIREMENTS.liberal) * 100, 100),
-          avg: summary.liberal.averageGradePoint,
         },
         other: {
           current: summary.other.earnedCredits,
-          avg: summary.other.averageGradePoint,
         },
       }
     : null
@@ -85,6 +133,16 @@ export default function LearningPage() {
         <h1 className="text-3xl font-bold text-gray-900 mb-2">학습 현황</h1>
         <p className="text-gray-600">이수 학점과 졸업 요건을 확인하세요</p>
       </div>
+
+      {/* 이수과목 추천 연동 안내 */}
+      {courses && courses.length > 0 && (
+        <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800">
+          <BookX className="w-4 h-4 shrink-0" />
+          <span>
+            이수과목 <strong>{courses.length}개</strong>가 시간표 추천에서 자동 제외됩니다.
+          </span>
+        </div>
+      )}
 
       {/* CSV 업로드 섹션 */}
       <div className="card">
@@ -143,7 +201,7 @@ export default function LearningPage() {
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium text-gray-700">총 이수 학점</span>
                 <span className="text-sm font-semibold text-gray-900">
-                  {progressData.total.current} / {progressData.total.max} 학점 (평점 {progressData.total.avg.toFixed(2)})
+                  {progressData.total.current} / {progressData.total.max} 학점
                 </span>
               </div>
               <Progress value={progressData.total.percentage} />
@@ -152,7 +210,7 @@ export default function LearningPage() {
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium text-gray-700">전공 학점</span>
                 <span className="text-sm font-semibold text-gray-900">
-                  {progressData.major.current} / {progressData.major.max} 학점 (평점 {progressData.major.avg.toFixed(2)})
+                  {progressData.major.current} / {progressData.major.max} 학점
                 </span>
               </div>
               <Progress value={progressData.major.percentage} />
@@ -161,7 +219,7 @@ export default function LearningPage() {
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium text-gray-700">교양 학점</span>
                 <span className="text-sm font-semibold text-gray-900">
-                  {progressData.liberal.current} / {progressData.liberal.max} 학점 (평점 {progressData.liberal.avg.toFixed(2)})
+                  {progressData.liberal.current} / {progressData.liberal.max} 학점
                 </span>
               </div>
               <Progress value={progressData.liberal.percentage} />

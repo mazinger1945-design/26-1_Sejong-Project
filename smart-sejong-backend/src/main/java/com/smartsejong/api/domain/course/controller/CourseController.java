@@ -5,9 +5,11 @@ import com.smartsejong.api.common.enums.CourseCategory;
 import com.smartsejong.api.common.enums.DayOfWeek;
 import com.smartsejong.api.domain.course.dto.CourseResponse;
 import com.smartsejong.api.domain.course.dto.CourseUploadResult;
+import com.smartsejong.api.domain.course.dto.EquivalencyResolveRequest;
 import com.smartsejong.api.domain.course.dto.GroupedSectionResponse;
 import com.smartsejong.api.domain.course.dto.SectionResponse;
 import com.smartsejong.api.domain.course.service.CourseService;
+import com.smartsejong.api.domain.course.service.EquivalencyService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Set;
 
 @Tag(name = "Course", description = "강의 정보 API")
 @RestController
@@ -26,6 +29,7 @@ import java.util.List;
 public class CourseController {
 
     private final CourseService courseService;
+    private final EquivalencyService equivalencyService;
 
     @Operation(summary = "전체 과목 조회")
     @GetMapping
@@ -106,5 +110,14 @@ public class CourseController {
             @Parameter(description = "Excel 파일 (.xlsx)") @RequestPart("file") MultipartFile file) {
         CourseUploadResult result = courseService.uploadCoursesFromExcel(file);
         return ResponseEntity.ok(CommonResponse.success("강의 데이터 업로드 완료", result));
+    }
+
+    @Operation(summary = "동일과목 코드 조회",
+               description = "이수한 학수번호 목록을 받아 동일과목 그룹의 모든 학수번호(제외 대상)를 반환한다")
+    @PostMapping("/equivalents/resolve")
+    public ResponseEntity<CommonResponse<Set<String>>> resolveEquivalents(
+            @RequestBody EquivalencyResolveRequest request) {
+        Set<String> codes = equivalencyService.resolveEquivalentCodes(request.courseCodes());
+        return ResponseEntity.ok(CommonResponse.success(codes));
     }
 }

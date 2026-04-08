@@ -40,9 +40,16 @@ public class Section extends BaseTimeEntity {
 
     private String sectionNumber; // 분반 번호 (예: 001)
 
+    @Column
+    private String college; // 개설 단과대
+
+    @Column
+    private String department; // 개설 학과/전공
+
     @Builder
     public Section(Course course, String professor, DayOfWeek dayOfWeek,
-                   LocalTime startTime, LocalTime endTime, String room, String sectionNumber) {
+                   LocalTime startTime, LocalTime endTime, String room, String sectionNumber,
+                   String college, String department) {
         this.course = course;
         this.professor = professor;
         this.dayOfWeek = dayOfWeek;
@@ -50,5 +57,7 @@ public class Section extends BaseTimeEntity {
         this.endTime = endTime;
         this.room = room;
         this.sectionNumber = sectionNumber;
+        this.college = college;
+        this.department = department;
     }
 }

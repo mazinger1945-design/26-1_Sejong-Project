@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import toast from 'react-hot-toast'
-import { Plus, Save, Trash2, Edit2, Calendar } from 'lucide-react'
+import { Plus, Trash2, Edit2, Calendar } from 'lucide-react'
 import { TimetableGrid } from '@/components/timetable/TimetableGrid'
 import type { Timetable } from '@/types'
 

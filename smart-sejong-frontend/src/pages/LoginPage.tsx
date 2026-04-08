@@ -38,7 +38,7 @@ export default function LoginPage() {
       }
       
       toast.success('로그인에 성공했습니다!')
-      navigate('/learning', { replace: true })
+      navigate('/recommendation', { replace: true })
     } catch (error: any) {
       console.error('Login error:', error)
       const errorMessage = error?.response?.data?.message || error?.message || '로그인에 실패했습니다.'

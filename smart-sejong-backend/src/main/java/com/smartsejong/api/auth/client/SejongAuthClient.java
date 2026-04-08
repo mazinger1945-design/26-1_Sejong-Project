@@ -137,10 +137,15 @@ public class SejongAuthClient {
      */
     private SejongStudentInfo parseUserInfo(String html, String studentId) {
         Document doc = Jsoup.parse(html);
-        String selector = ".b-con-box:has(h4:contains(사용자 정보)) table.b-board-table tbody tr";
+        String selector = ".b-con-box:has(h4:matchesOwn(사용자\\s*정보)) table.b-board-table tbody tr";
         List<String> values = new ArrayList<>();
 
         doc.select(selector).forEach(tr -> values.add(tr.select("td").text().trim()));
+
+        if (values.isEmpty()) {
+            doc.select(".b-con-box table.b-board-table tbody tr")
+                    .forEach(tr -> values.add(tr.select("td").text().trim()));
+        }
 
         if (values.size() < 5) {
             log.error("파싱 데이터 부족: {} 개", values.size());
@@ -148,8 +153,8 @@ public class SejongAuthClient {
         }
 
         // values: [0] 학과, [1] 학번, [2] 이름, [3] 학년, [4] 상태
-        String major = values.get(0);
-        String name = values.get(2);
+        String major = normalizeMajorName(values.get(0));
+        String name = values.get(2).trim();
         String grade = values.get(3).replaceAll("[^0-9]", "");
 
         log.info("세종대 포털 인증 성공 - 학번: {}, 이름: {}, 학과: {}, 학년: {}",
@@ -160,6 +165,13 @@ public class SejongAuthClient {
                 .fullName(name)
                 .major(major)
                 .build();
+    }
+
+    private String normalizeMajorName(String rawMajor) {
+        if (rawMajor == null) {
+            return "";
+        }
+        return rawMajor.trim().replaceAll("\\s+", " ");
     }
 
     /**

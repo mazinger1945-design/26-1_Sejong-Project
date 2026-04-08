@@ -26,6 +26,7 @@ import type {
   RecommendationRequest,
   RecommendationCombination,
   CopyRecommendationRequest,
+  GroupedSectionRaw,
 } from '@/types'
 import { normalizeUserInfo } from '@/lib/user'
 
@@ -297,6 +298,45 @@ class ApiClient {
       day: (s as { day?: string; dayOfWeekKor?: string }).day ?? (s as { dayOfWeekKor?: string }).dayOfWeekKor ?? '',
       time: formatSectionTime(s as { startTime?: string; endTime?: string }),
     }))
+  }
+
+  /** 분반 통합 검색 (그룹핑) - 추천 페이지 필수 포함 분반 검색용
+   *  GET /api/courses/sections/grouped-search?q=<keyword>
+   *  → GroupedSectionResponse[] (courseId, courseName, times[] 포함)
+   */
+  async searchGroupedSections(q: string): Promise<GroupedSectionRaw[]> {
+    const { data } = await this.client.get<{ status?: number; data?: GroupedSectionRaw[] }>(
+      '/api/courses/sections/grouped-search',
+      { params: { q } }
+    )
+    return (data?.data ?? (data as unknown as GroupedSectionRaw[])) ?? []
+  }
+
+  /** 전체 분반 조회 (candidate pool 구성용) */
+  async getAllGroupedSections(): Promise<GroupedSectionRaw[]> {
+    const { data } = await this.client.get<{ status?: number; data?: GroupedSectionRaw[] }>(
+      '/api/courses/sections/grouped-search'
+    )
+    return (data?.data ?? (data as unknown as GroupedSectionRaw[])) ?? []
+  }
+
+  /**
+   * 동일과목 그룹 resolve
+   * 완료한 학수번호 목록을 받아 동일과목 그룹의 모든 학수번호(제외 대상)를 반환한다.
+   * 백엔드 데이터 없을 경우 빈 Set 반환 (graceful fallback)
+   */
+  async resolveEquivalentCodes(courseCodes: string[]): Promise<Set<string>> {
+    if (!courseCodes.length) return new Set()
+    try {
+      const { data } = await this.client.post<{ status?: number; data?: string[] }>(
+        '/api/courses/equivalents/resolve',
+        { courseCodes }
+      )
+      const arr = data?.data ?? (data as unknown as string[]) ?? []
+      return new Set(arr)
+    } catch {
+      return new Set(courseCodes)
+    }
   }
 
   // Timetable APIs

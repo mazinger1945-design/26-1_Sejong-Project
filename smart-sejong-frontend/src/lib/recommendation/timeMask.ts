@@ -1,98 +1,155 @@
 /**
- * timeMask.ts
+ * 15분 단위 슬롯 + 요일별 bigint bitmask 유틸
  *
- * 시간 충돌 판정 모듈
- *
- * 하루를 30분 단위 슬롯으로 분할하고(09:00~21:00 = 24슬롯),
- * 각 요일별 비트마스크(number)로 점유 슬롯을 표현한다.
- * 충돌 판정은 AND 비트 연산으로 O(days) = O(5)로 처리.
+ * 범위: 08:00 ~ 22:00 → 56 slots (14시간 × 4슬롯)
+ * 요일 인덱스: 월=0, 화=1, 수=2, 목=3, 금=4
+ * weeklyMask = bigint[5]
  */
 
-import { SLOT_START_HOUR, SLOT_MIN, SLOTS_PER_DAY, DAY_KEYS } from './constants'
-import type { MeetingTime, DayMask } from './types'
+import { DAY_KEYS, SLOT_START_HOUR, SLOT_MIN, SLOTS_PER_DAY } from './constants'
+import type { Day, MeetingTime } from './types'
 
-/** 'HH:MM' → 슬롯 인덱스 (09:00 = 0, 09:30 = 1, …) */
-export function timeToSlot(time: string): number {
-  const [h, rest = '0'] = time.split(':')
-  const m = parseInt(rest, 10)
-  return Math.floor(((parseInt(h, 10) - SLOT_START_HOUR) * 60 + m) / SLOT_MIN)
+// 요일 문자 → 인덱스
+const DAY_INDEX: Record<string, number> = {
+  월: 0, 화: 1, 수: 2, 목: 3, 금: 4,
 }
 
-/**
- * MeetingTime 배열 → 요일별 비트마스크 맵
- * 알고리즘: 각 미팅 시간을 슬롯으로 변환 후 비트 OR 누적
- */
-export function buildMask(meetingTimes: MeetingTime[]): DayMask {
-  const mask: DayMask = {}
-  for (const { day, start, end } of meetingTimes) {
-    const s = Math.max(0, timeToSlot(start))
-    const e = Math.min(SLOTS_PER_DAY, timeToSlot(end))
-    let m = mask[day] ?? 0
-    for (let i = s; i < e; i++) m |= 1 << i
-    mask[day] = m
+/** 요일 한글 → index (없으면 -1) */
+export function dayToIndex(day: string): number {
+  return DAY_INDEX[day] ?? -1
+}
+
+/** 분(minute) → slot index (범위 밖이면 clamping) */
+export function minuteToSlot(minute: number): number {
+  return Math.floor((minute - SLOT_START_HOUR * 60) / SLOT_MIN)
+}
+
+/** slot index → 분 */
+export function slotToMinute(slot: number): number {
+  return SLOT_START_HOUR * 60 + slot * SLOT_MIN
+}
+
+/** "HH:MM" 문자열 → 분 */
+export function timeStringToMinute(t: string): number {
+  const [hStr, mStr] = t.split(':')
+  return parseInt(hStr, 10) * 60 + parseInt(mStr, 10)
+}
+
+/** 분 → "HH:MM" */
+export function minuteToTimeString(m: number): string {
+  const h = Math.floor(m / 60)
+  const min = m % 60
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
+}
+
+// ── mask 생성 ────────────────────────────────────────────────
+
+/** [startMinute, endMinute) 범위를 slot mask로 변환 */
+function rangeToMask(startMinute: number, endMinute: number): bigint {
+  const startSlot = Math.max(0, minuteToSlot(startMinute))
+  const endSlot = Math.min(SLOTS_PER_DAY, minuteToSlot(endMinute))
+  let mask = 0n
+  for (let s = startSlot; s < endSlot; s++) {
+    mask |= (1n << BigInt(s))
   }
   return mask
 }
 
-/** 단일 블록(요일, 시작, 종료) → 마스크 */
-export function buildSingleMask(day: string, start: string, end: string): DayMask {
-  return buildMask([{ day, start, end }])
+/** MeetingTime[] 로부터 weeklyMask bigint[5] 생성 */
+export function buildWeeklyMaskFromMeetings(meetings: MeetingTime[]): bigint[] {
+  const masks = [0n, 0n, 0n, 0n, 0n]
+  for (const mt of meetings) {
+    const idx = dayToIndex(mt.day)
+    if (idx < 0) continue
+    masks[idx] |= rangeToMask(mt.startMinute, mt.endMinute)
+  }
+  return masks
 }
 
-/**
- * 두 마스크 충돌 여부 - AND 연산으로 O(5)
- * @returns true이면 시간이 겹침
- */
-export function conflicts(a: DayMask, b: DayMask): boolean {
-  for (const d of DAY_KEYS) {
-    if (a[d] && b[d] && (a[d] & b[d]) !== 0) return true
+/** 요일 문자열(한글) + 시작/종료 시각(HH:MM) → weeklyMask bigint[5] */
+export function buildWeeklyMaskFromRaw(
+  day: string,
+  startTime: string,
+  endTime: string,
+): bigint[] {
+  const idx = dayToIndex(day)
+  const masks = [0n, 0n, 0n, 0n, 0n]
+  if (idx < 0) return masks
+  const startMin = timeStringToMinute(startTime)
+  const endMin = timeStringToMinute(endTime)
+  masks[idx] = rangeToMask(startMin, endMin)
+  return masks
+}
+
+/** CustomBlock(day + startMinute + endMinute) → weeklyMask bigint[5] */
+export function buildWeeklyMaskFromCustomBlock(
+  day: Day,
+  startMinute: number,
+  endMinute: number,
+): bigint[] {
+  const idx = dayToIndex(day)
+  const masks = [0n, 0n, 0n, 0n, 0n]
+  if (idx < 0) return masks
+  masks[idx] = rangeToMask(startMinute, endMinute)
+  return masks
+}
+
+// ── mask 연산 ────────────────────────────────────────────────
+
+/** 두 weeklyMask 사이에 충돌이 있는지 확인 */
+export function hasMaskConflict(a: bigint[], b: bigint[]): boolean {
+  for (let i = 0; i < 5; i++) {
+    if ((a[i] & b[i]) !== 0n) return true
   }
   return false
 }
 
-/** 두 마스크 병합(합집합) */
-export function merge(a: DayMask, b: DayMask): DayMask {
-  const r: DayMask = { ...a }
-  for (const d of DAY_KEYS) {
-    if (b[d]) r[d] = (r[d] ?? 0) | b[d]
-  }
-  return r
+/** 두 weeklyMask 를 OR 병합 */
+export function mergeWeeklyMasks(a: bigint[], b: bigint[]): bigint[] {
+  return a.map((v, i) => v | b[i])
 }
 
-/** 해당 요일에 점유된 슬롯이 없으면 true */
-export function isDayEmpty(mask: DayMask, day: string): boolean {
-  return !mask[day]
-}
-
-/** 특정 슬롯 구간(from~to)의 점유 슬롯 수 */
-export function slotCount(mask: DayMask, day: string, from: number, to: number): number {
-  const m = mask[day] ?? 0
-  let n = 0
-  for (let i = from; i < to; i++) if (m & (1 << i)) n++
-  return n
-}
-
-/**
- * 요일별로 점유된 연속 구간 목록을 반환 (정렬된 순서)
- * DFS gap 계산에 사용
- */
-export function occupiedRanges(mask: DayMask): Record<string, { s: number; e: number }[]> {
-  const result: Record<string, { s: number; e: number }[]> = {}
-  for (const day of DAY_KEYS) {
-    const m = mask[day]
-    if (!m) continue
-    const ranges: { s: number; e: number }[] = []
-    let i = 0
-    while (i < SLOTS_PER_DAY) {
-      if (m & (1 << i)) {
-        const s = i
-        while (i < SLOTS_PER_DAY && (m & (1 << i))) i++
-        ranges.push({ s, e: i })
-      } else {
-        i++
-      }
-    }
-    result[day] = ranges
+/** 여러 weeklyMask 를 한꺼번에 병합 */
+export function combineWeeklyMasks(masks: bigint[][]): bigint[] {
+  const result = [0n, 0n, 0n, 0n, 0n]
+  for (const m of masks) {
+    for (let i = 0; i < 5; i++) result[i] |= m[i]
   }
   return result
+}
+
+// ── 시간 분석 ────────────────────────────────────────────────
+
+/** 요일별로 점유된 연속 구간 목록 반환 [{start, end}[]] (분 단위, 정렬됨) */
+export function getIntervalsByDay(
+  meetings: MeetingTime[],
+): Partial<Record<Day, { start: number; end: number }[]>> {
+  const dayMap: Partial<Record<Day, { start: number; end: number }[]>> = {}
+  for (const mt of meetings) {
+    if (!dayMap[mt.day]) dayMap[mt.day] = []
+    dayMap[mt.day]!.push({ start: mt.startMinute, end: mt.endMinute })
+  }
+  for (const day of DAY_KEYS) {
+    dayMap[day]?.sort((a, b) => a.start - b.start)
+  }
+  return dayMap
+}
+
+/** 두 구간 목록을 병합 + 정렬 (overlap/adjacent 구간 합치기) */
+export function mergeIntervals(
+  a: { start: number; end: number }[],
+  b: { start: number; end: number }[],
+): { start: number; end: number }[] {
+  const all = [...a, ...b].sort((x, y) => x.start - y.start)
+  if (!all.length) return []
+  const merged: { start: number; end: number }[] = [all[0]]
+  for (let i = 1; i < all.length; i++) {
+    const last = merged[merged.length - 1]
+    if (all[i].start <= last.end) {
+      last.end = Math.max(last.end, all[i].end)
+    } else {
+      merged.push({ ...all[i] })
+    }
+  }
+  return merged
 }

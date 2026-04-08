@@ -1,108 +1,126 @@
 // ============================================================
-// 추천 도메인 전용 타입 정의
+// 추천 엔진 도메인 타입
 // ============================================================
 
-/** 수업 시간 블록 */
+/** 요일 키 */
+export type Day = '월' | '화' | '수' | '목' | '금'
+
+export type PreferenceLevel = 'PREFER' | 'NEUTRAL' | 'DISLIKE'
+export type DeliveryPreference = 'ONLINE_PREFER' | 'ANY' | 'OFFLINE_PREFER'
+export type GapLevel = 0 | 1 | 2 | 3
+
+// ── 수업 시간 블록 ───────────────────────────────────────────
+
+/** 분(minute) 기반 수업 시간 */
 export interface MeetingTime {
-  day: string   // '월' | '화' | '수' | '목' | '금'
-  start: string // 'HH:MM'
-  end: string   // 'HH:MM'
+  day: Day
+  startMinute: number  // 자정 기준 분 (예: 09:00 → 540)
+  endMinute: number
 }
 
-/** 추천 후보 분반 - 추천 엔진이 다루는 핵심 데이터 단위 */
-export interface SectionCandidate {
-  courseId: number
+// ── 추천 엔진 입력 타입 ─────────────────────────────────────
+
+/** 백엔드 GroupedSectionResponse → 정규화된 분반 (추천 엔진 표준) */
+export interface RSection {
+  courseId: string          // 문자열 통일 (number → string 변환)
   courseName: string
   courseCode: string
-  sectionId: number
-  sectionName: string
+  sectionId: string
+  sectionName: string       // sectionNumber 포함
   credits: number
   meetingTimes: MeetingTime[]
   deliveryMode: 'ONLINE' | 'OFFLINE' | 'MIXED' | 'UNKNOWN'
-  professor?: string
+  professor: string
+  categoryDescription: string  // "전공필수", "교양선택" 등
+  college: string              // 개설 단과대 (예: "인공지능융합대학")
+  department: string           // 개설 학과/전공 (예: "AI로봇학과")
 }
 
-/**
- * 요일별 점유 슬롯 비트마스크
- * 예: { '월': 0b000111 } → 월요일 슬롯 0,1,2 점유
- */
-export type DayMask = Record<string, number>
-
-/** 필수 고정 분반 (사용자가 직접 선택) */
-export interface FixedSection {
-  section: SectionCandidate
-  mask: DayMask // 사전 계산된 시간 마스크
+/** 정규화 후 bitmask 추가된 분반 */
+export interface NormalizedSection extends RSection {
+  weeklyMask: bigint[]  // [mon, tue, wed, thu, fri] 각 56bit
+  intervalsByDay: Partial<Record<Day, { start: number; end: number }[]>>
 }
 
-/** 사용자 정의 일정 블록 (알바, 동아리 등) */
+/** 사용자 정의 일정 */
 export interface CustomBlock {
-  id: string    // 클라이언트 임시 ID
+  id: string
   title: string
-  day: string
-  start: string
-  end: string
-  mask: DayMask // 사전 계산된 시간 마스크
+  day: Day
+  startMinute: number
+  endMinute: number
+  weeklyMask: bigint[]
 }
 
-/** 제외 과목 (과목 단위) */
+/** 고정 분반 (RSection + bitmask) */
+export interface FixedSection extends NormalizedSection {
+  // NormalizedSection 그대로 (mask 이미 포함)
+}
+
+/** 제외 과목 */
 export interface ExcludedCourse {
-  courseId: number
+  courseId: string
   courseCode: string
   courseName: string
 }
 
-export type DeliveryPreference = 'ONLINE_PREFER' | 'ANY' | 'OFFLINE_PREFER'
-export type TimePref = 'PREFER' | 'NEUTRAL' | 'DISLIKE'
-export type GapLevel = 0 | 1 | 2 | 3
+// ── 조건 모델 ────────────────────────────────────────────────
 
-/** 추천 조건 전체 상태 모델 */
-export interface RecommendationConditions {
-  // 하드 조건
+export interface RecommendationFilters {
   fixedSections: FixedSection[]
-  fixedCustomBlocks: CustomBlock[]
-  excludedCourseIds: number[]
+  customBlocks: CustomBlock[]
+  excludedCourseIds: string[]
   creditRange: { min: number; max: number }
-  deliveryPreference: DeliveryPreference
-
-  // 소프트 조건
-  preferredFreeDays: string[]
+  preferredFreeDays: Day[]
   timePreference: {
-    morning: TimePref
-    afternoon: TimePref
-    evening: TimePref
+    morning: PreferenceLevel
+    afternoon: PreferenceLevel
+    evening: PreferenceLevel
   }
   allowedGapLevel: GapLevel
   needsLunchBreak: boolean
+  deliveryPreference: DeliveryPreference
+  /** 전공 최소 과목 수 (0이면 비활성) */
+  majorMinCount: number
+  /** 사용자 소속 학과 (전공 판정에 사용) */
+  userMajor: string
 }
 
-/** 소프트 조건별 세부 점수 */
-export interface ScoreBreakdown {
-  freeDayScore: number
-  timePreferenceScore: number
-  gapScore: number
-  lunchScore: number
-  deliveryScore: number
-  total: number
-}
+// ── 검증 오류 ────────────────────────────────────────────────
 
-/** 추천 결과 1개 */
-export interface RecommendationResult {
-  id: number
-  sections: SectionCandidate[] // 고정 분반 제외, 추가 선택된 분반
-  totalCredits: number         // 고정 학점 포함 전체 학점
-  scoreBreakdown: ScoreBreakdown
-  reasons: string[]            // 추천 이유 텍스트
-}
-
-/** DFS 탐색을 위한 과목 그룹 (같은 과목의 여러 분반 묶음) */
-export interface CandidateGroup {
-  courseId: number
-  courseName: string
-  sections: SectionCandidate[]
-}
-
-/** 하드 조건 검증 오류 */
 export interface ValidationError {
-  type: 'SECTION_CONFLICT' | 'CUSTOM_CONFLICT' | 'CREDIT_EXCEED' | 'EXCLUDED_CONFLICT'
+  type:
+    | 'SECTION_SECTION_CONFLICT'
+    | 'SECTION_CUSTOM_CONFLICT'
+    | 'CUSTOM_CUSTOM_CONFLICT'
+    | 'EXCLUDED_CONFLICT'
+    | 'CREDIT_EXCEED'
+    | 'CREDIT_RANGE_INVALID'
   message: string
+}
+
+// ── 결과 타입 ────────────────────────────────────────────────
+
+export interface ScoreBreakdown {
+  freeDay: number
+  timePreference: number
+  gap: number
+  lunch: number
+  delivery: number
+  major: number
+  total: number         // 100점 정규화
+}
+
+export interface RecommendationItem {
+  sections: RSection[]  // fixed 제외, 새로 선택된 분반만
+  totalCredits: number  // fixed 포함 전체 학점
+  scoreBreakdown: ScoreBreakdown
+  reasons: string[]
+}
+
+/** DFS 과목 그룹 */
+export interface CourseGroup {
+  courseId: string
+  courseName: string
+  sections: NormalizedSection[]
 }

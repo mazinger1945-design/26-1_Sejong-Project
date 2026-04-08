@@ -12,16 +12,10 @@ import ProfilePage from './pages/ProfilePage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
-  // 개발 모드: 개발 중에는 인증 없이 접근 가능하도록 설정
-  // 프로덕션 배포 시에는 이 부분을 제거하거나 환경 변수로 제어하세요
-  const DEV_MODE = import.meta.env.DEV
-  const BYPASS_AUTH = import.meta.env.VITE_BYPASS_AUTH !== 'false' // 기본값: true (개발 편의)
-  
-  // 개발 모드에서 인증 우회 (백엔드가 permitAll이므로 프론트도 허용)
-  if (DEV_MODE && BYPASS_AUTH) {
-    return <>{children}</>
-  }
-  
+  // VITE_BYPASS_AUTH=true 로 명시해야만 인증 우회 (기본: 항상 로그인 필요)
+  const BYPASS_AUTH = import.meta.env.VITE_BYPASS_AUTH === 'true'
+  if (BYPASS_AUTH) return <>{children}</>
+
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />
 }
 
@@ -60,15 +54,15 @@ function App() {
             </PrivateRoute>
           }
         >
-          <Route index element={<Navigate to="/learning" replace />} />
+          <Route index element={<Navigate to="/recommendation" replace />} />
           <Route path="learning" element={<LearningPage />} />
           <Route path="recommendation" element={<RecommendationPage />} />
           <Route path="timetable" element={<TimetablePage />} />
           <Route path="group" element={<GroupPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>
-        {/* 잘못된 경로 처리 */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* 잘못된 경로 → 로그인 */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
   )

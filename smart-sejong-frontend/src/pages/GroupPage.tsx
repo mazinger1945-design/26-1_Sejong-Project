@@ -251,7 +251,7 @@ interface GroupCardProps {
   onLeave: () => void
 }
 
-function GroupCard({ group, isSelected, onSelect, onLeave }: GroupCardProps) {
+function GroupCard({ group, isSelected, onSelect, onLeave: _onLeave }: GroupCardProps) {
   return (
     <div
       className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${

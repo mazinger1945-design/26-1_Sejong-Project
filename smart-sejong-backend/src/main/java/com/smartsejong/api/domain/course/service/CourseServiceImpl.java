@@ -112,10 +112,9 @@ public class CourseServiceImpl implements CourseService {
                 ? sectionRepository.findAllWithCourse()
                 : sectionRepository.searchByKeyword(q.trim());
 
-        // courseId + sectionNumber + professor 기준으로 그룹핑
+        // courseId + sectionNumber + professor + 개설 단위 기준으로 그룹핑
         Map<String, List<Section>> grouped = sections.stream()
-                .collect(Collectors.groupingBy(s ->
-                        s.getCourse().getId() + "_" + s.getSectionNumber() + "_" + s.getProfessor()));
+                .collect(Collectors.groupingBy(this::buildSectionGroupKey));
 
         return grouped.values().stream()
                 .map(group -> {
@@ -129,6 +128,9 @@ public class CourseServiceImpl implements CourseService {
                                     .build())
                             .toList();
                     long minId = group.stream().mapToLong(Section::getId).min().orElse(rep.getId());
+                    String categoryDesc = rep.getCourse().getCategory() != null
+                            ? rep.getCourse().getCategory().getDescription()
+                            : null;
                     return GroupedSectionResponse.builder()
                             .sectionId(minId)
                             .courseId(rep.getCourse().getId())
@@ -137,6 +139,9 @@ public class CourseServiceImpl implements CourseService {
                             .credits(rep.getCourse().getCredits())
                             .sectionNumber(rep.getSectionNumber())
                             .professor(rep.getProfessor())
+                            .categoryDescription(categoryDesc)
+                            .college(getEffectiveCollege(rep))
+                            .department(getEffectiveDepartment(rep))
                             .times(times)
                             .build();
                 })
@@ -162,9 +167,12 @@ public class CourseServiceImpl implements CourseService {
                 if (row == null) continue;
 
                 try {
-                    // 2025-2 강의시간표 형식 컬럼 매핑
+                    // 강의시간표 형식 컬럼 매핑
+                    // [1] 개설대학, [2] 개설학과전공
                     // [3] 학수번호, [4] 분반, [5] 교과목명, [6] 이수구분
                     // [8] 학점, [13] 요일 및 강의시간, [14] 강의실, [15] 메인교수명
+                    String college = getCellValue(row.getCell(1));
+                    String department = getCellValue(row.getCell(2));
                     String courseCode = getCellValue(row.getCell(3));
                     String sectionNumber = getCellValue(row.getCell(4));
                     String courseName = getCellValue(row.getCell(5));
@@ -173,6 +181,9 @@ public class CourseServiceImpl implements CourseService {
                     String timeStr = getCellValue(row.getCell(13));
                     String room = getCellValue(row.getCell(14));
                     String professor = getCellValue(row.getCell(15));
+                    CourseCategory category = CourseCategory.fromString(categoryStr);
+                    String normalizedCollege = blankToNull(college);
+                    String normalizedDepartment = blankToNull(department);
 
                     // 필수 값 체크
                     if (courseCode.isEmpty() || courseName.isEmpty()) {
@@ -180,13 +191,19 @@ public class CourseServiceImpl implements CourseService {
                         continue;
                     }
 
-                    // 과목 생성 또는 조회
                     Course course = courseRepository.findByCourseCode(courseCode)
+                            .map(existing -> {
+                                existing.syncCatalogInfo(courseName, category, (int) credits);
+                                existing.syncAcademicUnit(normalizedCollege, normalizedDepartment);
+                                return existing;
+                            })
                             .orElseGet(() -> courseRepository.save(Course.builder()
                                     .courseCode(courseCode)
                                     .name(courseName)
-                                    .category(CourseCategory.fromString(categoryStr))
+                                    .category(category)
                                     .credits((int) credits)
+                                    .college(normalizedCollege)
+                                    .department(normalizedDepartment)
                                     .build()));
 
                     // 시간 파싱 및 분반 생성 (여러 시간대 지원)
@@ -202,6 +219,8 @@ public class CourseServiceImpl implements CourseService {
                                 .startTime(null)
                                 .endTime(null)
                                 .room(room)
+                                .college(normalizedCollege)
+                                .department(normalizedDepartment)
                                 .build();
                         sectionRepository.save(section);
                     } else {
@@ -215,6 +234,8 @@ public class CourseServiceImpl implements CourseService {
                                     .startTime(slot.startTime)
                                     .endTime(slot.endTime)
                                     .room(room)
+                                    .college(normalizedCollege)
+                                    .department(normalizedDepartment)
                                     .build();
                             sectionRepository.save(section);
                         }
@@ -269,6 +290,33 @@ public class CourseServiceImpl implements CourseService {
             }
             default -> 0;
         };
+    }
+
+    private String blankToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private String buildSectionGroupKey(Section section) {
+        return section.getCourse().getId()
+                + "_" + section.getSectionNumber()
+                + "_" + section.getProfessor()
+                + "_" + normalizeGroupValue(getEffectiveCollege(section))
+                + "_" + normalizeGroupValue(getEffectiveDepartment(section));
+    }
+
+    private String getEffectiveCollege(Section section) {
+        return section.getCollege() != null ? section.getCollege() : section.getCourse().getCollege();
+    }
+
+    private String getEffectiveDepartment(Section section) {
+        return section.getDepartment() != null ? section.getDepartment() : section.getCourse().getDepartment();
+    }
+
+    private String normalizeGroupValue(String value) {
+        return value == null ? "" : value.trim();
     }
 
     /**

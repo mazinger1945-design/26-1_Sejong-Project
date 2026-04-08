@@ -79,14 +79,15 @@ public class AuthServiceImpl implements AuthService {
 
         // 기존 사용자 조회 또는 신규 생성
         User user = userRepository.findByStudentId(studentInfo.getStudentId())
-                .orElseGet(() -> {
-                    User newUser = User.builder()
-                            .studentId(studentInfo.getStudentId())
-                            .fullName(studentInfo.getFullName())
-                            .major(studentInfo.getMajor())
-                            .build();
-                    return userRepository.save(newUser);
-                });
+                .map(existingUser -> {
+                    existingUser.updateInfo(studentInfo.getFullName(), studentInfo.getMajor());
+                    return existingUser;
+                })
+                .orElseGet(() -> userRepository.save(User.builder()
+                        .studentId(studentInfo.getStudentId())
+                        .fullName(studentInfo.getFullName())
+                        .major(studentInfo.getMajor())
+                        .build()));
 
         log.info("로그인 성공 - userId: {}, studentId: {}, name: {}",
                 user.getId(), user.getStudentId(), user.getFullName());
