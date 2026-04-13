@@ -1,5 +1,11 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios'
-import type { AuthResponse, LoginRequest } from '@/types'
+import type {
+  AuthResponse,
+  LoginRequest,
+  CompletedCourseItem,
+  CompletedCourseSummary,
+  CompletedCourseUploadResult,
+} from '@/types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
@@ -51,6 +57,33 @@ class ApiClient {
     await this.client.post('/api/auth/logout')
     localStorage.removeItem('token')
     localStorage.removeItem('refreshToken')
+  }
+
+  async importCompletedCourses(file: File): Promise<CompletedCourseUploadResult> {
+    const formData = new FormData()
+    formData.append('file', file)
+    const { data } = await this.client.post<{ status?: number; data?: CompletedCourseUploadResult }>(
+      '/api/completed-courses/import',
+      formData,
+    )
+    if (data?.data) return data.data
+    throw new Error('저장 결과를 받지 못했습니다.')
+  }
+
+  async getCompletedCourses(): Promise<CompletedCourseItem[]> {
+    const { data } = await this.client.get<{ status?: number; data?: CompletedCourseItem[] }>(
+      '/api/completed-courses',
+    )
+    if (data?.data) return data.data
+    return []
+  }
+
+  async getCompletedCoursesSummary(): Promise<CompletedCourseSummary> {
+    const { data } = await this.client.get<{ status?: number; data?: CompletedCourseSummary }>(
+      '/api/completed-courses/summary',
+    )
+    if (data?.data) return data.data
+    throw new Error('학점 요약 정보를 받지 못했습니다.')
   }
 }
 
