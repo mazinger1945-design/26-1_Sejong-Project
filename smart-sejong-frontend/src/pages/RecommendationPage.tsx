@@ -21,18 +21,15 @@ import {
   BookX,
 } from 'lucide-react'
 import { TimetableGrid } from '@/components/timetable/TimetableGrid'
-import type { TimetableItem } from '@/types'
-import type { GroupedSectionRaw } from '@/types'
-import { generateRecommendations } from '@/lib/recommendation/engine'
-import { normalizeCourseData, normalizeSection, toRSection, normalizeCustomBlock } from '@/lib/recommendation/normalize'
+import type { TimetableItem, GroupedSectionRaw } from '@/types'
+import { normalizeSection, toRSection, normalizeCustomBlock } from '@/lib/recommendation/normalize'
 import { validateFixedItems, buildInitialMask } from '@/lib/recommendation/validate'
 import {
   searchGroupedSections,
   searchCoursesForExclude,
-  loadAllCandidateSections,
   toExcludedCourse,
 } from '@/lib/recommendation/search'
-import { hasMaskConflict } from '@/lib/recommendation/timeMask'
+import { hasMaskConflict, minuteToTimeString } from '@/lib/recommendation/timeMask'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/recommendation/constants'
 import type {
   Day,
@@ -100,49 +97,13 @@ const MAJOR_COUNT_OPTIONS: { label: string; value: number }[] = [
 let _tempId = 1
 const nextTempId = () => `tmp-${_tempId++}`
 
-// ── 이름 유사도 매칭 헬퍼 ─────────────────────────────────────
-
-/** 이름 정규화: 공백·접속사·조사 제거 후 소문자 */
-function normalizeCourseName(name: string): string {
-  return name
-    .replace(/[및\s·,・()[\]]/g, '')
-    .replace(/과목|강의/g, '')
-    .toLowerCase()
-}
-
-/**
- * 두 과목 이름이 "동일 과목 변형"으로 볼 수 있는지 판정
- * - courseCode 일치 (우선)
- * - courseCode가 없는 기이수 데이터에서만 이름 완전 일치 fallback
- */
-function isSimilarCourse(
-  candidateCode: string,
-  candidateName: string,
-  completed: CompletedCourseInfo[],
-): boolean {
-  const normCandidate = normalizeCourseName(candidateName)
-  for (const comp of completed) {
-    // 1) courseCode 일치
-    if (comp.courseCode && candidateCode.toLowerCase() === comp.courseCode.toLowerCase()) {
-      return true
-    }
-    // 2) 코드가 없는 오래된 로컬 데이터에 한해 이름 완전 일치 fallback
-    if (!comp.courseCode && comp.courseName) {
-      const normComp = normalizeCourseName(comp.courseName)
-      if (normComp && normCandidate && normCandidate === normComp) {
-        return true
-      }
-    }
-  }
-  return false
-}
 
 function dedupeCompletedCourseInfo(items: CompletedCourseInfo[]): CompletedCourseInfo[] {
   const seen = new Set<string>()
   const result: CompletedCourseInfo[] = []
 
   for (const item of items) {
-    const key = item.courseCode?.trim() || `name:${normalizeCourseName(item.courseName)}`
+    const key = item.courseCode?.trim() || `name:${(item.courseName ?? '').replace(/\s+/g, '').toLowerCase()}`
     if (!key || seen.has(key)) continue
     seen.add(key)
     result.push({
@@ -231,9 +192,6 @@ export default function RecommendationPage() {
   const [courseSearching, setCourseSearching] = useState(false)
   const [showCourseDrop, setShowCourseDrop] = useState(false)
 
-  // candidate pool
-  const [candidateSections, setCandidateSections] = useState<GroupedSectionRaw[]>([])
-  const [candidateLoading, setCandidateLoading] = useState(false)
 
   // 추천 결과
   const [recommendations, setRecommendations] = useState<RecommendationItem[]>([])
@@ -266,14 +224,6 @@ export default function RecommendationPage() {
     setCompletedCourseInfo(loadCompletedCourseInfo())
   }, [])
 
-  // ── candidate pool 로딩 ──────────────────────────────────
-
-  useEffect(() => {
-    setCandidateLoading(true)
-    loadAllCandidateSections()
-      .then(setCandidateSections)
-      .finally(() => setCandidateLoading(false))
-  }, [])
 
   // ── 미리보기 업데이트 ────────────────────────────────────
 
@@ -493,12 +443,7 @@ export default function RecommendationPage() {
     setDiagnosisMessage(null)
 
     try {
-      const pool = normalizeCourseData(candidateSections)
-      if (pool.length === 0) {
-        setDiagnosisMessage('강의 데이터가 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요.')
-        return
-      }
-
+      // 최신 기이수 과목 조회
       let effectiveCompletedCourseInfo = completedCourseInfo
       if (user?.student_id) {
         try {
@@ -516,72 +461,54 @@ export default function RecommendationPage() {
         }
       }
 
-      let filteredPool = pool
+      // 동일과목 코드 해석
+      let equivalentCodeSet = new Set<string>()
       if (effectiveCompletedCourseInfo.length > 0) {
         const completedCodes = effectiveCompletedCourseInfo.map((c) => c.courseCode).filter(Boolean)
-
-        // 1) 백엔드 동일과목 그룹 조회 (가장 정확)
-        const equivalentCodeSet = await api.resolveEquivalentCodes(completedCodes)
-
-        filteredPool = pool.filter((s) => {
-          // 동일과목 코드 기반 제외 (백엔드 데이터 우선)
-          if (equivalentCodeSet.has(s.courseCode)) return false
-          // 이름 유사도 기반 제외 (fallback)
-          if (isSimilarCourse(s.courseCode, s.courseName, effectiveCompletedCourseInfo)) return false
-          return true
-        })
+        equivalentCodeSet = await api.resolveEquivalentCodes(completedCodes)
       }
 
-      if (filteredPool.length === 0) {
-        setDiagnosisMessage(
-          effectiveCompletedCourseInfo.length > 0
-            ? '기이수 과목과 동일과목을 제외한 뒤 남은 후보 강의가 없습니다. 학습 현황 업로드 내용을 확인해주세요.'
-            : '추천 가능한 강의 후보를 불러오지 못했습니다.',
-        )
-        return
-      }
+      // 백엔드 추천 API 호출
+      const backendResult = await api.generateRecommendations({
+        fixedSectionIds: filters.fixedSections.map((s) => Number(s.sectionId)),
+        customBlocks: filters.customBlocks.map((b) => ({
+          title: b.title,
+          day: b.day,
+          startTime: minuteToTimeString(b.startMinute),
+          endTime: minuteToTimeString(b.endMinute),
+        })),
+        excludedCourseIds: filters.excludedCourseIds.map(Number),
+        excludedCourseCodes: [...equivalentCodeSet],
+        creditMin: filters.creditRange.min,
+        creditMax: filters.creditRange.max,
+        preferredFreeDays: filters.preferredFreeDays,
+        morningPreference: filters.timePreference.morning,
+        afternoonPreference: filters.timePreference.afternoon,
+        eveningPreference: filters.timePreference.evening,
+        allowedGapLevel: filters.allowedGapLevel,
+        needsLunchBreak: filters.needsLunchBreak,
+        deliveryPreference: filters.deliveryPreference,
+        majorMinCount: filters.majorMinCount,
+        userMajor: filters.userMajor ?? '',
+      })
 
-      const remainingMajorCourseCount = hasMajorClassificationContext(filters.userMajor)
-        ? new Set(
-            filteredPool
-              .filter((section) =>
-                isMajorCourseForUser(
-                  section.college ?? '',
-                  section.department ?? '',
-                  section.categoryDescription ?? '',
-                  filters.userMajor,
-                ),
-              )
-              .map((section) => section.courseId),
-          ).size
-        : 0
+      // 응답 변환: BackendSectionDto → NormalizedSection (toRSection 재사용)
+      const recommendations: RecommendationItem[] = (backendResult.combinations ?? []).map((c) => ({
+        sections: c.sections.map((s) =>
+          normalizeSection(toRSection(s as unknown as GroupedSectionRaw)),
+        ),
+        totalCredits: c.totalCredits,
+        scoreBreakdown: c.scoreBreakdown,
+        reasons: c.reasons,
+      }))
 
-      if (
-        filters.majorMinCount > 0 &&
-        hasMajorClassificationContext(filters.userMajor) &&
-        remainingMajorCourseCount < filters.majorMinCount
-      ) {
-        setDiagnosisMessage(
-          `기이수/동일과목 제외 후 남은 내 전공 후보가 ${remainingMajorCourseCount}과목뿐이라 전공 ${filters.majorMinCount}개 이상 조합을 만들 수 없습니다.`,
-        )
-        return
-      }
-
-      const result = generateRecommendations(filteredPool, filters)
-
-      setRecommendations(result.recommendations)
-      if (!result.recommendations.length && filters.majorMinCount > 0 && remainingMajorCourseCount > 0) {
-        setDiagnosisMessage(
-          `남아 있는 내 전공 후보는 ${remainingMajorCourseCount}과목이지만, 현재 학점 범위와 시간표 충돌 조건을 함께 만족하는 조합을 찾지 못했습니다.`,
-        )
-      } else {
-        setDiagnosisMessage(result.diagnosisMessage)
-      }
+      setRecommendations(recommendations)
+      setDiagnosisMessage(backendResult.diagnosisMessage ?? null)
       setSelectedIdx(0)
     } finally {
       setGenerating(false)
     }
-  }, [filters, candidateSections, completedCourseInfo, user?.student_id])
+  }, [filters, completedCourseInfo, user?.student_id])
 
   // ── 공강 요일 토글 ───────────────────────────────────────
 
@@ -621,15 +548,10 @@ export default function RecommendationPage() {
         <div className="flex items-center gap-2">
           <Filter className="w-5 h-5 text-primary-600" />
           <h1 className="text-xl font-bold text-gray-900">시간표 추천</h1>
-          {candidateLoading && (
-            <span className="flex items-center gap-1 text-xs text-gray-400">
-              <Loader2 className="w-3 h-3 animate-spin" /> 강의 데이터 로딩 중...
-            </span>
-          )}
         </div>
         <button
           onClick={handleGenerate}
-          disabled={generating || candidateLoading}
+          disabled={generating}
           className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
         >
           {generating ? (

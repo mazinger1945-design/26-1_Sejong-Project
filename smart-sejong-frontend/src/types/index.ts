@@ -186,22 +186,60 @@ export interface JoinGroupResponse {
   group_id: number
 }
 
-// AI Recommendation Types
-export interface RecommendationFilters {
-  preferred_days?: string[]
-  min_free_days?: number
-  preferred_times?: string[]
-  required_courses?: string[]
+// Recommendation API Types (backend)
+export interface BackendRecommendationRequest {
+  fixedSectionIds: number[]
+  customBlocks: { title: string; day: string; startTime: string; endTime: string }[]
+  excludedCourseIds: number[]
+  excludedCourseCodes: string[]
+  creditMin: number
+  creditMax: number
+  preferredFreeDays: string[]
+  morningPreference: string
+  afternoonPreference: string
+  eveningPreference: string
+  allowedGapLevel: number
+  needsLunchBreak: boolean
+  deliveryPreference: string
+  majorMinCount: number
+  userMajor: string
 }
 
-export interface RecommendationRequest {
-  filters: RecommendationFilters
-  pinned_items?: number[]
+export interface BackendScoreBreakdown {
+  freeDay: number
+  timePreference: number
+  gap: number
+  lunch: number
+  delivery: number
+  major: number
+  total: number
 }
 
-export interface RecommendationCombination {
-  combination_id: number
-  items: TimetableItem[]
+export interface BackendSectionDto {
+  sectionId: number
+  courseId: number
+  courseCode: string
+  courseName: string
+  sectionNumber: string
+  professor: string
+  credits: number
+  categoryDescription: string | null
+  college: string | null
+  department: string | null
+  deliveryMode: string
+  times: { dayOfWeekKor: string; startTime: string; endTime: string }[]
+}
+
+export interface BackendCombinationDto {
+  sections: BackendSectionDto[]
+  totalCredits: number
+  scoreBreakdown: BackendScoreBreakdown
+  reasons: string[]
+}
+
+export interface BackendRecommendationResponse {
+  combinations: BackendCombinationDto[]
+  diagnosisMessage: string | null
 }
 
 export interface CopyRecommendationRequest {

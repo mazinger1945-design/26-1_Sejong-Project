@@ -23,8 +23,8 @@ import type {
   CreateGroupResponse,
   JoinGroupRequest,
   JoinGroupResponse,
-  RecommendationRequest,
-  RecommendationCombination,
+  BackendRecommendationRequest,
+  BackendRecommendationResponse,
   CopyRecommendationRequest,
   GroupedSectionRaw,
 } from '@/types'
@@ -443,15 +443,16 @@ class ApiClient {
     return data
   }
 
-  // AI Recommendation APIs
+  // Recommendation API
   async generateRecommendations(
-    request: RecommendationRequest
-  ): Promise<RecommendationCombination[]> {
-    const { data } = await this.client.post<RecommendationCombination[]>(
+    request: BackendRecommendationRequest
+  ): Promise<BackendRecommendationResponse> {
+    const { data } = await this.client.post<{ status?: number; data?: BackendRecommendationResponse }>(
       '/api/recommend/generate',
       request
     )
-    return data
+    if (data?.data) return data.data
+    throw new Error('추천 결과를 받지 못했습니다.')
   }
 
   async copyRecommendation(request: CopyRecommendationRequest): Promise<void> {

@@ -17,4 +17,11 @@ public enum DayOfWeek {
 
     private final int index;
     private final String kor;
+
+    public static DayOfWeek fromKor(String kor) {
+        for (DayOfWeek d : values()) {
+            if (d.kor.equals(kor)) return d;
+        }
+        throw new IllegalArgumentException("알 수 없는 요일: " + kor);
+    }
 }

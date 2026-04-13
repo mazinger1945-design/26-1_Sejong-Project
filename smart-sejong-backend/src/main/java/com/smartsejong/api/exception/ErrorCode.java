@@ -24,9 +24,17 @@ public enum ErrorCode {
     COURSE_NOT_FOUND(HttpStatus.NOT_FOUND, "L003", "해당 과목을 찾을 수 없습니다."),
     SECTION_NOT_FOUND(HttpStatus.NOT_FOUND, "L004", "해당 분반을 찾을 수 없습니다."),
 
+    // Timetable
+    TIMETABLE_NOT_FOUND(HttpStatus.NOT_FOUND, "T001", "해당 시간표를 찾을 수 없습니다."),
+    TIMETABLE_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "T002", "해당 시간표 항목을 찾을 수 없습니다."),
+    TIMETABLE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "T003", "해당 시간표에 대한 접근 권한이 없습니다."),
+
     // Group
     GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "G001", "해당 그룹을 찾을 수 없습니다."),
     GROUP_ALREADY_FULL(HttpStatus.BAD_REQUEST, "G002", "그룹 인원이 가득 찼습니다."),
+    GROUP_MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "G003", "그룹 멤버를 찾을 수 없습니다."),
+    GROUP_ALREADY_JOINED(HttpStatus.BAD_REQUEST, "G004", "이미 참여한 그룹입니다."),
+    GROUP_ACCESS_DENIED(HttpStatus.FORBIDDEN, "G005", "해당 그룹에 대한 접근 권한이 없습니다."),
 
     // Common
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C001", "서버 내부 오류가 발생했습니다."),

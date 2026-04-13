@@ -13,7 +13,10 @@ import lombok.NoArgsConstructor;
  * 그룹 멤버십 엔티티: 특정 그룹에 속한 사용자 정보를 관리합니다.
  */
 @Entity
-@Table(name = "group_members")
+@Table(
+        name = "group_members",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"group_id", "user_id"})
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class GroupMember extends BaseTimeEntity {
