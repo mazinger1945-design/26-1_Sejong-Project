@@ -1,27 +1,49 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
-import Layout from './components/Layout'
 import { normalizeUserInfo } from './lib/user'
 import LoginPage from './pages/LoginPage'
-import LearningPage from './pages/LearningPage'
-import RecommendationPage from './pages/RecommendationPage'
-import TimetablePage from './pages/TimetablePage'
-import GroupPage from './pages/GroupPage'
-import ProfilePage from './pages/ProfilePage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />
 }
 
+function LoginCompletePage() {
+  const navigate = useNavigate()
+  const { user, logout } = useAuthStore()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login', { replace: true })
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="card max-w-md w-full text-center">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">로그인 완료</h1>
+        <p className="text-gray-600 mb-6">
+          {user?.nickname ?? '사용자'}님, Smart Sejong에 로그인되었습니다.
+        </p>
+        <div className="text-sm text-gray-500 space-y-1 mb-6">
+          {user?.student_id && <p>학번: {user.student_id}</p>}
+          {user?.major && <p>전공: {user.major}</p>}
+        </div>
+        <button type="button" onClick={handleLogout} className="btn-secondary w-full">
+          로그아웃
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const setUser = useAuthStore((state) => state.setUser)
-  
+
   useEffect(() => {
     const token = localStorage.getItem('token')
     const userStr = localStorage.getItem('user')
-    
+
     if (token && userStr) {
       try {
         const user = normalizeUserInfo(JSON.parse(userStr))
@@ -31,7 +53,7 @@ function App() {
       }
     }
   }, [setUser])
-  
+
   return (
     <BrowserRouter
       future={{
@@ -45,18 +67,10 @@ function App() {
           path="/"
           element={
             <PrivateRoute>
-              <Layout />
+              <LoginCompletePage />
             </PrivateRoute>
           }
-        >
-          <Route index element={<Navigate to="/recommendation" replace />} />
-          <Route path="learning" element={<LearningPage />} />
-          <Route path="recommendation" element={<RecommendationPage />} />
-          <Route path="timetable" element={<TimetablePage />} />
-          <Route path="group" element={<GroupPage />} />
-          <Route path="profile" element={<ProfilePage />} />
-        </Route>
-        {/* 잘못된 경로 → 로그인 */}
+        />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
@@ -64,4 +78,3 @@ function App() {
 }
 
 export default App
-

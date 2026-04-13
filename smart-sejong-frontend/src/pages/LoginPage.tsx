@@ -23,28 +23,24 @@ export default function LoginPage() {
     setIsLoggingIn(true)
     try {
       const response = await api.login({ studentId, password })
-      
-      // JWT 토큰 저장
+
       if (response.accessToken) {
         localStorage.setItem('token', response.accessToken)
         if (response.refreshToken) {
           localStorage.setItem('refreshToken', response.refreshToken)
         }
       }
-      
-      // 사용자 정보 저장 및 인증 상태 업데이트
+
       if (response.user) {
         setUser(normalizeUserInfo(response.user))
       }
-      
-      toast.success('로그인에 성공했습니다!')
-      navigate('/recommendation', { replace: true })
+
+      toast.success('로그인되었습니다.')
+      navigate('/', { replace: true })
     } catch (error: any) {
-      console.error('Login error:', error)
       const errorMessage = error?.response?.data?.message || error?.message || '로그인에 실패했습니다.'
       toast.error(errorMessage)
-      
-      // 백엔드가 실행되지 않은 경우 안내
+
       if (error?.code === 'ERR_NETWORK' || error?.message?.includes('Failed to fetch')) {
         toast.error('백엔드 서버가 실행 중인지 확인해주세요. (http://localhost:8080)')
       }
@@ -63,9 +59,8 @@ export default function LoginPage() {
             </div>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Smart Sejong</h1>
-          <p className="text-gray-600 mb-8">스마트 시간표 관리 시스템</p>
+          <p className="text-gray-600 mb-8">세종대학교 포털 계정으로 로그인합니다</p>
 
-          {/* 로그인 폼 */}
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -103,11 +98,10 @@ export default function LoginPage() {
           </form>
 
           <p className="text-xs text-gray-500 mt-6 text-center">
-            세종대학교 포털 계정으로 로그인합니다
+            세종대학교 포털 인증 후 서비스에 접속합니다.
           </p>
         </div>
       </div>
     </div>
   )
 }
-
