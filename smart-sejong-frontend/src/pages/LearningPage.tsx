@@ -1,10 +1,34 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import toast from 'react-hot-toast'
 import { Upload, FileSpreadsheet, Award, BookOpen } from 'lucide-react'
 import { Progress } from '@/components/ui/Progress'
 import { CourseCard } from '@/components/learning/CourseCard'
+
+export const COMPLETED_COURSES_STORAGE_KEY = 'completedCourseInfo'
+
+export interface CompletedCourseInfo {
+  courseCode: string
+  courseName: string
+}
+
+export function saveCompletedCourseInfo(items: CompletedCourseInfo[]) {
+  localStorage.setItem(COMPLETED_COURSES_STORAGE_KEY, JSON.stringify(items))
+}
+
+export function loadCompletedCourseInfo(): CompletedCourseInfo[] {
+  const raw = localStorage.getItem(COMPLETED_COURSES_STORAGE_KEY)
+  if (!raw) return []
+
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
 
 const GRADUATION_REQUIREMENTS = {
   total: 130,
@@ -29,6 +53,17 @@ export default function LearningPage() {
     retry: false,
     refetchOnWindowFocus: false,
   })
+
+  useEffect(() => {
+    if (!courses) return
+
+    saveCompletedCourseInfo(
+      courses.map((course) => ({
+        courseCode: course.courseCode,
+        courseName: course.courseName,
+      })),
+    )
+  }, [courses])
 
   const uploadMutation = useMutation({
     mutationFn: (selectedFile: File) => api.importCompletedCourses(selectedFile),
@@ -74,9 +109,14 @@ export default function LearningPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">학습 현황</h1>
-          <p className="text-gray-600">기이수 성적표를 업로드하고 이수 학점을 확인합니다.</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">학습 현황</h1>
+            <p className="text-gray-600">기이수 성적표를 업로드하고 이수 학점을 확인합니다.</p>
+          </div>
+          <Link to="/recommendation" className="btn-primary text-center">
+            시간표 추천으로 이동
+          </Link>
         </div>
 
         <section className="card">

@@ -4,6 +4,7 @@ import { useAuthStore } from './store/authStore'
 import { normalizeUserInfo } from './lib/user'
 import LoginPage from './pages/LoginPage'
 import LearningPage from './pages/LearningPage'
+import RecommendationPage from './pages/RecommendationPage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
@@ -49,6 +50,14 @@ function App() {
           element={
             <PrivateRoute>
               <LearningPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/recommendation"
+          element={
+            <PrivateRoute>
+              <RecommendationPage />
             </PrivateRoute>
           }
         />
