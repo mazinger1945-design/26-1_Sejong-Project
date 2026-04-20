@@ -16,14 +16,6 @@ const KOR_TO_DAY: Record<string, Day> = {
   월: '월', 화: '화', 수: '수', 목: '목', 금: '금',
 }
 
-/** 방식 판단: 시간 정보 없으면 ONLINE, 있으면 OFFLINE */
-function inferDeliveryMode(
-  times: GroupedSectionRaw['times'],
-): RSection['deliveryMode'] {
-  if (!times || times.length === 0) return 'ONLINE'
-  return 'OFFLINE'
-}
-
 /** GroupedSectionRaw → RSection */
 export function toRSection(raw: GroupedSectionRaw): RSection {
   const meetingTimes: MeetingTime[] = (raw.times ?? [])
@@ -42,7 +34,6 @@ export function toRSection(raw: GroupedSectionRaw): RSection {
     sectionName: raw.sectionNumber ?? '',
     credits: raw.credits ?? 0,
     meetingTimes,
-    deliveryMode: inferDeliveryMode(raw.times),
     professor: raw.professor ?? '',
     categoryDescription: raw.categoryDescription ?? '',
     college: raw.college ?? '',

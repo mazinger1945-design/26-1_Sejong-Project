@@ -12,17 +12,12 @@ import ProfilePage from './pages/ProfilePage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
-  // VITE_BYPASS_AUTH=true 로 명시해야만 인증 우회 (기본: 항상 로그인 필요)
-  const BYPASS_AUTH = import.meta.env.VITE_BYPASS_AUTH === 'true'
-  if (BYPASS_AUTH) return <>{children}</>
-
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />
 }
 
 function App() {
   const setUser = useAuthStore((state) => state.setUser)
   
-  // 카카오 로그인 후 localStorage에서 사용자 정보 로드
   useEffect(() => {
     const token = localStorage.getItem('token')
     const userStr = localStorage.getItem('user')

@@ -210,7 +210,7 @@ public class CourseServiceImpl implements CourseService {
                     List<TimeSlot> timeSlots = parseTimeSlots(timeStr);
 
                     if (timeSlots.isEmpty()) {
-                        // 시간 정보 없는 경우 (온라인 강의 등)
+                        // 시간 정보가 없는 분반은 요일/시각 없이 저장
                         Section section = Section.builder()
                                 .course(course)
                                 .sectionNumber(sectionNumber)

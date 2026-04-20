@@ -42,7 +42,7 @@ public class TimetableItem extends BaseTimeEntity {
     private LocalTime customEnd;
 
     @Column(nullable = false)
-    private boolean isPinned; // AI 추천 시 고정 여부
+    private boolean isPinned; // 추천 시 고정 여부
 
     @Builder
     public TimetableItem(Timetable timetable, Section section, boolean isCustom,

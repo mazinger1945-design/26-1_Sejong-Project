@@ -18,23 +18,6 @@ function freeDaySatisfaction(filters: RecommendationFilters, sections: RSection[
   return matched / preferredFreeDays.length
 }
 
-/** 배달 만족도 계산 */
-function deliverySatisfaction(filters: RecommendationFilters, sections: RSection[]): number {
-  const { deliveryPreference } = filters
-  if (deliveryPreference === 'ANY') return 0
-  const total = sections.reduce((s, r) => s + r.credits, 0)
-  if (total === 0) return 0
-  let online = 0, offline = 0, mixed = 0
-  for (const sec of sections) {
-    if (sec.deliveryMode === 'ONLINE') online += sec.credits
-    else if (sec.deliveryMode === 'OFFLINE') offline += sec.credits
-    else if (sec.deliveryMode === 'MIXED') mixed += sec.credits
-  }
-  return deliveryPreference === 'ONLINE_PREFER'
-    ? (online + 0.5 * mixed) / total
-    : (offline + 0.5 * mixed) / total
-}
-
 export function buildRecommendationReasons(
   allSections: RSection[],
   filters: RecommendationFilters,
@@ -66,17 +49,6 @@ export function buildRecommendationReasons(
   // 공백 시간
   const gapPct = score.gap / SCORE_WEIGHTS.GAP
   if (gapPct >= 0.9) reasons.push('강의 사이 공백 최소화')
-
-  // 온라인/오프라인 선호
-  if (filters.deliveryPreference !== 'ANY') {
-    const dSat = deliverySatisfaction(filters, allSections)
-    if (filters.deliveryPreference === 'ONLINE_PREFER' && dSat >= 0.7) {
-      reasons.push('온라인 수업 비중 높음')
-    }
-    if (filters.deliveryPreference === 'OFFLINE_PREFER' && dSat >= 0.7) {
-      reasons.push('오프라인 수업 비중 높음')
-    }
-  }
 
   // 전공 과목 수
   if (filters.majorMinCount > 0 && hasMajorClassificationContext(filters.userMajor)) {

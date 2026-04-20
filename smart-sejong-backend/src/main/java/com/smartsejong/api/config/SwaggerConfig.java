@@ -18,7 +18,7 @@ public class SwaggerConfig {
     public OpenAPI openAPI() {
         Info info = new Info()
                 .title("SmartSejong API Documentation")
-                .description("AI 기반 세종대학교 시간표 큐레이션 서비스 API 명세서")
+                .description("세종대학교 시간표 추천 서비스 API 명세서")
                 .version("v1.0.0");
 
         // JWT 인증을 위한 설정

@@ -4,7 +4,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 시간대 선호 Enum: AI 추천 시 선호하는 수업 시간대
+ * 시간대 선호 Enum: 시간표 추천 시 선호하는 수업 시간대
  */
 @Getter
 @RequiredArgsConstructor

@@ -35,7 +35,6 @@ public class RecommendationResponseDto {
         private String categoryDescription;
         private String college;
         private String department;
-        private String deliveryMode;   // "ONLINE" | "OFFLINE"
         private List<TimeDto> times;
     }
 
@@ -54,7 +53,6 @@ public class RecommendationResponseDto {
         private double timePreference;
         private double gap;
         private double lunch;
-        private double delivery;
         private double major;
         private int total;
     }

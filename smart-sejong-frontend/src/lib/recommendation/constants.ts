@@ -8,7 +8,6 @@ export const SCORE_WEIGHTS = {
   TIME_PREFERENCE: 25,
   GAP: 20,
   LUNCH: 15,
-  DELIVERY: 10,
   MAJOR: 20,
 } as const
 

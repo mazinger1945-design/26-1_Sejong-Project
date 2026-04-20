@@ -36,7 +36,6 @@ public class RecommendationServiceImpl implements RecommendationService {
     private static final double W_TIME = 25.0;
     private static final double W_GAP = 20.0;
     private static final double W_LUNCH = 15.0;
-    private static final double W_DELIVERY = 10.0;
 
     private static final int[] GAP_MINUTES = {0, 60, 120, Integer.MAX_VALUE};
 
@@ -58,7 +57,7 @@ public class RecommendationServiceImpl implements RecommendationService {
             long sectionId, long courseId, String courseCode, String courseName,
             int credits, String sectionNum, String professor,
             String category, String college, String dept,
-            String delivery, long[] mask, List<TimeInfo> times) {
+            long[] mask, List<TimeInfo> times) {
         String groupKey() {
             return courseId + "_" + sectionNum + "_" + safe(professor)
                     + "_" + safe(college) + "_" + safe(dept);
@@ -68,7 +67,7 @@ public class RecommendationServiceImpl implements RecommendationService {
 
     private record CourseGroup(long courseId, List<SecData> sections) {}
 
-    private record Score(double freeDay, double time, double gap, double lunch, double delivery, int total) {}
+    private record Score(double freeDay, double time, double gap, double lunch, int total) {}
 
     private record Candidate(List<SecData> sections, int totalCredits, Score score, List<String> reasons) {
         String courseKey() {
@@ -234,7 +233,6 @@ public class RecommendationServiceImpl implements RecommendationService {
             String col = rep.getCollege() != null ? rep.getCollege() : safe(rep.getCourse().getCollege());
             String dep = rep.getDepartment() != null ? rep.getDepartment() : safe(rep.getCourse().getDepartment());
             String catDesc = rep.getCourse().getCategory() != null ? rep.getCourse().getCategory().getDescription() : "";
-            String delivery = times.isEmpty() ? "ONLINE" : "OFFLINE";
 
             result.put(entry.getKey(), new SecData(
                     minId,
@@ -244,7 +242,7 @@ public class RecommendationServiceImpl implements RecommendationService {
                     rep.getCourse().getCredits(),
                     safe(rep.getSectionNumber()),
                     safe(rep.getProfessor()),
-                    catDesc, col, dep, delivery,
+                    catDesc, col, dep,
                     buildMask(times), times));
         }
         return result;
@@ -372,12 +370,11 @@ public class RecommendationServiceImpl implements RecommendationService {
         double time = scoreTime(all, req);
         double gap = scoreGap(all, blocks, req);
         double lunch = req.isNeedsLunchBreak() ? scoreLunch(all, blocks) : 0;
-        double delivery = scoreDelivery(all, req);
 
-        double earned = freeDay + time + gap + lunch + delivery;
+        double earned = freeDay + time + gap + lunch;
         double maxW = activeWeightSum(req);
         int total = maxW > 0 ? (int) Math.round(earned / maxW * 100) : 0;
-        return new Score(freeDay, time, gap, lunch, delivery, total);
+        return new Score(freeDay, time, gap, lunch, total);
     }
 
     private double scoreFreeDay(List<SecData> all, RecommendationRequest req) {
@@ -478,24 +475,12 @@ public class RecommendationServiceImpl implements RecommendationService {
         return map;
     }
 
-    private double scoreDelivery(List<SecData> all, RecommendationRequest req) {
-        String pref = req.getDeliveryPreference();
-        if ("ANY".equals(pref)) return 0;
-        int total = all.stream().mapToInt(SecData::credits).sum();
-        if (total == 0) return 0;
-        int online = all.stream().filter(s -> "ONLINE".equals(s.delivery())).mapToInt(SecData::credits).sum();
-        int offline = all.stream().filter(s -> "OFFLINE".equals(s.delivery())).mapToInt(SecData::credits).sum();
-        double ratio = "ONLINE_PREFER".equals(pref) ? (double) online / total : (double) offline / total;
-        return W_DELIVERY * ratio;
-    }
-
     private double activeWeightSum(RecommendationRequest req) {
         double sum = W_GAP;
         if (!req.getPreferredFreeDays().isEmpty()) sum += W_FREE_DAY;
         if (!req.getMorningPreference().equals("NEUTRAL") || !req.getAfternoonPreference().equals("NEUTRAL")
                 || !req.getEveningPreference().equals("NEUTRAL")) sum += W_TIME;
         if (req.isNeedsLunchBreak()) sum += W_LUNCH;
-        if (!"ANY".equals(req.getDeliveryPreference())) sum += W_DELIVERY;
         return sum;
     }
 
@@ -533,18 +518,6 @@ public class RecommendationServiceImpl implements RecommendationService {
 
         if (req.isNeedsLunchBreak() && s.lunch() / W_LUNCH >= 0.8) r.add("점심시간 확보");
         if (s.gap() / W_GAP >= 0.9) r.add("강의 사이 공백 최소화");
-
-        if (!"ANY".equals(req.getDeliveryPreference())) {
-            int total = all.stream().mapToInt(SecData::credits).sum();
-            if (total > 0) {
-                int online = all.stream().filter(sec -> "ONLINE".equals(sec.delivery())).mapToInt(SecData::credits).sum();
-                double ratio = "ONLINE_PREFER".equals(req.getDeliveryPreference())
-                        ? (double) online / total : (double) (total - online) / total;
-                if (ratio >= 0.7) {
-                    r.add("ONLINE_PREFER".equals(req.getDeliveryPreference()) ? "온라인 수업 비중 높음" : "오프라인 수업 비중 높음");
-                }
-            }
-        }
 
         if (req.getMajorMinCount() > 0 && hasMajorCtx(req.getUserMajor())) {
             long cnt = all.stream().filter(sec -> isMajor(sec, req.getUserMajor())).count();
@@ -752,7 +725,7 @@ public class RecommendationServiceImpl implements RecommendationService {
                 .totalCredits(c.totalCredits())
                 .scoreBreakdown(ScoreBreakdownDto.builder()
                         .freeDay(s.freeDay()).timePreference(s.time()).gap(s.gap())
-                        .lunch(s.lunch()).delivery(s.delivery()).major(0).total(s.total())
+                        .lunch(s.lunch()).major(0).total(s.total())
                         .build())
                 .reasons(c.reasons())
                 .build();
@@ -770,7 +743,7 @@ public class RecommendationServiceImpl implements RecommendationService {
                 .sectionNumber(s.sectionNum()).professor(s.professor())
                 .credits(s.credits()).categoryDescription(s.category())
                 .college(s.college()).department(s.dept())
-                .deliveryMode(s.delivery()).times(times)
+                .times(times)
                 .build();
     }
 

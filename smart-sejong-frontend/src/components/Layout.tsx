@@ -3,7 +3,7 @@ import { useAuthStore } from '@/store/authStore'
 import { api } from '@/lib/api'
 import { 
   GraduationCap, 
-  Sparkles, 
+  CalendarCheck, 
   Calendar, 
   Users, 
   User,
@@ -13,7 +13,7 @@ import toast from 'react-hot-toast'
 
 const navItems = [
   { path: '/learning', label: '학습 현황', icon: GraduationCap },
-  { path: '/recommendation', label: 'AI 추천', icon: Sparkles },
+  { path: '/recommendation', label: '시간표 추천', icon: CalendarCheck },
   { path: '/timetable', label: '내 시간표', icon: Calendar },
   { path: '/group', label: '그룹 협동', icon: Users },
 ]

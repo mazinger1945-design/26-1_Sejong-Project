@@ -169,7 +169,7 @@ export default function TimetablePage() {
               ) : (
                 <div className="text-center py-12 text-gray-500">
                   <p>이 시간표에는 항목이 없습니다.</p>
-                  <p className="text-sm mt-2">AI 추천 페이지에서 항목을 추가하세요.</p>
+                  <p className="text-sm mt-2">추천 페이지에서 항목을 추가하세요.</p>
                 </div>
               )}
             </div>
@@ -286,4 +286,3 @@ function TimetableCard({
     </div>
   )
 }
-

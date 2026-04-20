@@ -30,7 +30,7 @@ public class Section extends BaseTimeEntity {
     private String professor; // 담당 교수 성함
 
     @Enumerated(EnumType.STRING)
-    private DayOfWeek dayOfWeek; // 수업 요일 (온라인 강의는 null)
+    private DayOfWeek dayOfWeek; // 수업 요일 (시간 정보가 없으면 null)
 
     private LocalTime startTime; // 수업 시작 시각
 

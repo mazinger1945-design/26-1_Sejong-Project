@@ -9,7 +9,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 사용자 선호도 엔티티: AI 시간표 추천을 위한 선호 설정
+ * 사용자 선호도 엔티티: 시간표 추천을 위한 선호 설정
  */
 @Entity
 @Table(name = "user_preferences")

@@ -178,33 +178,6 @@ function scoreLunch(
   return SCORE_WEIGHTS.LUNCH * (satisfiedDays / activeDays)
 }
 
-function scoreDelivery(
-  filters: RecommendationFilters,
-  sections: RSection[],
-): number {
-  const { deliveryPreference } = filters
-  if (deliveryPreference === 'ANY') return 0
-
-  const totalCredits = sections.reduce((s, r) => s + r.credits, 0)
-  if (totalCredits === 0) return 0
-
-  let onlineCredits = 0
-  let offlineCredits = 0
-  let mixedCredits = 0
-  for (const sec of sections) {
-    if (sec.deliveryMode === 'ONLINE') onlineCredits += sec.credits
-    else if (sec.deliveryMode === 'OFFLINE') offlineCredits += sec.credits
-    else if (sec.deliveryMode === 'MIXED') mixedCredits += sec.credits
-  }
-
-  const satisfaction =
-    deliveryPreference === 'ONLINE_PREFER'
-      ? (onlineCredits + 0.5 * mixedCredits) / totalCredits
-      : (offlineCredits + 0.5 * mixedCredits) / totalCredits
-
-  return SCORE_WEIGHTS.DELIVERY * satisfaction
-}
-
 // ── 통합 점수 계산 ───────────────────────────────────────────
 
 /**
@@ -219,7 +192,6 @@ function activeWeightSum(filters: RecommendationFilters): number {
     sum += SCORE_WEIGHTS.TIME_PREFERENCE
   }
   if (filters.needsLunchBreak) sum += SCORE_WEIGHTS.LUNCH
-  if (filters.deliveryPreference !== 'ANY') sum += SCORE_WEIGHTS.DELIVERY
   return sum
 }
 
@@ -232,13 +204,12 @@ export function scoreSchedule(
   const timePreference = scoreTimePreference(filters, allSections)
   const gap = scoreGap(filters, allSections, customBlocks)
   const lunch = scoreLunch(filters, allSections, customBlocks)
-  const delivery = scoreDelivery(filters, allSections)
   // major은 엔진에서 하드 조건으로 처리 → 소프트 점수는 0 (표시용)
   const major = 0
 
-  const earned = freeDay + timePreference + gap + lunch + delivery
+  const earned = freeDay + timePreference + gap + lunch
   const maxPossible = activeWeightSum(filters)
   const total = maxPossible > 0 ? Math.round((earned / maxPossible) * 100) : 0
 
-  return { freeDay, timePreference, gap, lunch, delivery, major, total }
+  return { freeDay, timePreference, gap, lunch, major, total }
 }

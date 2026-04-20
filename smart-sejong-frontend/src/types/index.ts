@@ -200,7 +200,6 @@ export interface BackendRecommendationRequest {
   eveningPreference: string
   allowedGapLevel: number
   needsLunchBreak: boolean
-  deliveryPreference: string
   majorMinCount: number
   userMajor: string
 }
@@ -210,7 +209,6 @@ export interface BackendScoreBreakdown {
   timePreference: number
   gap: number
   lunch: number
-  delivery: number
   major: number
   total: number
 }
@@ -226,7 +224,6 @@ export interface BackendSectionDto {
   categoryDescription: string | null
   college: string | null
   department: string | null
-  deliveryMode: string
   times: { dayOfWeekKor: string; startTime: string; endTime: string }[]
 }
 

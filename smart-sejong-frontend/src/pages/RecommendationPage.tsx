@@ -3,7 +3,7 @@
  *
  * 제약조건 기반 시간표 추천 페이지
  * - 하드 조건: 필수 포함 분반, 내 일정, 제외 과목, 학점 범위
- * - 소프트 조건: 공강 요일, 시간대 선호, 공백 허용, 점심 확보, 온/오프 선호
+ * - 소프트 조건: 공강 요일, 시간대 선호, 공백 허용, 점심 확보
  * - 실제 백엔드 연동 (GET /api/courses/sections/grouped-search)
  */
 
@@ -14,7 +14,7 @@ import {
   Plus,
   X,
   Search,
-  Wand2,
+  ListChecks,
   AlertTriangle,
   ChevronDown,
   Loader2,
@@ -34,7 +34,6 @@ import { SEARCH_DEBOUNCE_MS } from '@/lib/recommendation/constants'
 import type {
   Day,
   PreferenceLevel,
-  DeliveryPreference,
   GapLevel,
   FixedSection,
   CustomBlock,
@@ -65,7 +64,6 @@ const DEFAULT_FILTERS: RecommendationFilters = {
   timePreference: { morning: 'NEUTRAL', afternoon: 'NEUTRAL', evening: 'NEUTRAL' },
   allowedGapLevel: 2,
   needsLunchBreak: false,
-  deliveryPreference: 'ANY',
   majorMinCount: 0,
   userMajor: '',
 }
@@ -77,11 +75,6 @@ const GAP_LABELS: Record<GapLevel, string> = {
   1: '1시간 이하',
   2: '2시간 이하',
   3: '3시간 이상 가능',
-}
-const DELIVERY_LABELS: Record<DeliveryPreference, string> = {
-  ONLINE_PREFER: '온라인 선호',
-  ANY: '상관없음',
-  OFFLINE_PREFER: '오프라인 선호',
 }
 const PREF_LABELS: Record<PreferenceLevel, string> = {
   PREFER: '선호',
@@ -487,7 +480,6 @@ export default function RecommendationPage() {
         eveningPreference: filters.timePreference.evening,
         allowedGapLevel: filters.allowedGapLevel,
         needsLunchBreak: filters.needsLunchBreak,
-        deliveryPreference: filters.deliveryPreference,
         majorMinCount: filters.majorMinCount,
         userMajor: filters.userMajor ?? '',
       })
@@ -557,7 +549,7 @@ export default function RecommendationPage() {
           {generating ? (
             <><Loader2 className="w-4 h-4 animate-spin" /> 탐색 중...</>
           ) : (
-            <><Wand2 className="w-4 h-4" /> 최적 조합 찾기</>
+            <><ListChecks className="w-4 h-4" /> 최적 조합 찾기</>
           )}
         </button>
       </div>
@@ -768,25 +760,6 @@ export default function RecommendationPage() {
             })()}
           </FilterCard>
 
-          {/* 5. 온/오프라인 선호 */}
-          <FilterCard title="온라인 / 오프라인 선호">
-            <div className="flex gap-2">
-              {(['ONLINE_PREFER', 'ANY', 'OFFLINE_PREFER'] as DeliveryPreference[]).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => { setFilters((p) => ({ ...p, deliveryPreference: v })); setRecommendations([]) }}
-                  className={`flex-1 py-1.5 text-xs rounded-lg border font-medium transition-colors ${
-                    filters.deliveryPreference === v
-                      ? 'bg-primary-100 border-primary-400 text-primary-700'
-                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  {DELIVERY_LABELS[v]}
-                </button>
-              ))}
-            </div>
-          </FilterCard>
-
           {/* ── 선호 조건 ── */}
           <SectionHeader label="선호 조건" />
 
@@ -950,12 +923,11 @@ export default function RecommendationPage() {
                       <span key={i} className="text-xs bg-white border border-gray-200 rounded px-2 py-0.5 text-gray-700">{r}</span>
                     ))}
                   </div>
-                  <div className="mt-2 grid grid-cols-5 gap-1 text-[10px] text-gray-500">
+                  <div className="mt-2 grid grid-cols-4 gap-1 text-[10px] text-gray-500">
                     <ScoreBar label="공강" value={selectedRec.scoreBreakdown.freeDay} max={30} />
                     <ScoreBar label="시간대" value={selectedRec.scoreBreakdown.timePreference} max={25} />
                     <ScoreBar label="공백" value={selectedRec.scoreBreakdown.gap} max={20} />
                     <ScoreBar label="점심" value={selectedRec.scoreBreakdown.lunch} max={15} />
-                    <ScoreBar label="온/오프" value={selectedRec.scoreBreakdown.delivery} max={10} />
                   </div>
                   <div className="mt-2 text-xs text-gray-600 space-y-1">
                     <div>

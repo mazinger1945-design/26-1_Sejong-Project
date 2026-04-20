@@ -6,7 +6,6 @@
 export type Day = '월' | '화' | '수' | '목' | '금'
 
 export type PreferenceLevel = 'PREFER' | 'NEUTRAL' | 'DISLIKE'
-export type DeliveryPreference = 'ONLINE_PREFER' | 'ANY' | 'OFFLINE_PREFER'
 export type GapLevel = 0 | 1 | 2 | 3
 
 // ── 수업 시간 블록 ───────────────────────────────────────────
@@ -29,7 +28,6 @@ export interface RSection {
   sectionName: string       // sectionNumber 포함
   credits: number
   meetingTimes: MeetingTime[]
-  deliveryMode: 'ONLINE' | 'OFFLINE' | 'MIXED' | 'UNKNOWN'
   professor: string
   categoryDescription: string  // "전공필수", "교양선택" 등
   college: string              // 개설 단과대 (예: "인공지능융합대학")
@@ -79,7 +77,6 @@ export interface RecommendationFilters {
   }
   allowedGapLevel: GapLevel
   needsLunchBreak: boolean
-  deliveryPreference: DeliveryPreference
   /** 전공 최소 과목 수 (0이면 비활성) */
   majorMinCount: number
   /** 사용자 소속 학과 (전공 판정에 사용) */
@@ -106,7 +103,6 @@ export interface ScoreBreakdown {
   timePreference: number
   gap: number
   lunch: number
-  delivery: number
   major: number
   total: number         // 100점 정규화
 }

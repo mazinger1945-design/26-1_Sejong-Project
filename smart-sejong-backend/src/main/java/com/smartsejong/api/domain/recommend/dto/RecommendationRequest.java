@@ -32,9 +32,6 @@ public class RecommendationRequest {
 
     private boolean needsLunchBreak = false;
 
-    /** "ONLINE_PREFER" | "ANY" | "OFFLINE_PREFER" */
-    private String deliveryPreference = "ANY";
-
     /** 전공 최소 과목 수 (0이면 비활성) */
     private int majorMinCount = 0;
 
