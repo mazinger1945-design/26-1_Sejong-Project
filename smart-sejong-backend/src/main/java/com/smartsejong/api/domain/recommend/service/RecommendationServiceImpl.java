@@ -29,12 +29,15 @@ public class RecommendationServiceImpl implements RecommendationService {
     private static final int SLOTS_PER_DAY = 56;        // (22-8)*60/15
     private static final int TOP_K = 3;
     private static final int MAX_EVAL = 30_000;
+    private static final int DIVERSITY_EVAL_LIMIT = 8_000;
     private static final int CANDIDATE_POOL_SIZE = 200;
-    private static final double MMR_ALPHA = 0.50;
+    private static final double MMR_ALPHA = 0.35;
     private static final double MIN_SCORE_RATIO = 0.50;
-    private static final double STRICT_SIMILARITY_LIMIT = 0.55;
-    private static final double STRICT_TIME_SIMILARITY_LIMIT = 0.60;
-    private static final double RELAXED_SIMILARITY_LIMIT = 0.70;
+    private static final double PREFERRED_SIMILARITY_LIMIT = 0.50;
+    private static final double SECONDARY_SIMILARITY_LIMIT = 0.60;
+    private static final double FALLBACK_SIMILARITY_LIMIT = 0.70;
+    private static final double MAJOR_DISTANCE_PENALTY = 0.08;
+    private static final double MAJOR_POOL_PENALTY = 10.0;
 
     private static final double W_FREE_DAY = 30.0;
     private static final double W_TIME = 25.0;
@@ -73,7 +76,7 @@ public class RecommendationServiceImpl implements RecommendationService {
 
     private record Score(double freeDay, double time, double gap, double lunch, int total) {}
 
-    private record Candidate(List<SecData> sections, int totalCredits, Score score, List<String> reasons) {
+    private record Candidate(List<SecData> sections, int totalCredits, Score score, List<String> reasons, int majorCount) {
         String courseKey() {
             return sections.stream().mapToLong(SecData::courseId).sorted()
                     .mapToObj(Long::toString).collect(Collectors.joining(","));
@@ -160,14 +163,17 @@ public class RecommendationServiceImpl implements RecommendationService {
         Map<String, Integer> poolIdx = new LinkedHashMap<>();
 
         dfs(0, initMask.clone(), new ArrayList<>(), fixedCredits, fixedMajorCnt,
-                groups, suffixCred, suffixMajor, fixed, req, evalCnt, pool, poolIdx);
+                groups, suffixCred, suffixMajor, fixed, req, evalCnt, pool, poolIdx, Set.of());
 
         if (pool.isEmpty()) {
             return fail(diagMsg(req, candidates.size(), fixedCredits, suffixCred));
         }
 
+        enrichDiversityPool(pool, poolIdx, initMask, fixedCredits, fixedMajorCnt,
+                groups, suffixCred, suffixMajor, fixed, req);
+
         // 9. 다양성 상위 K 선택 및 응답 변환
-        List<CombinationDto> combos = selectDiverse(pool).stream()
+        List<CombinationDto> combos = selectDiverse(pool, req).stream()
                 .map(c -> toCombDto(c, fixedCredits))
                 .toList();
 
@@ -312,12 +318,17 @@ public class RecommendationServiceImpl implements RecommendationService {
         return s;
     }
 
+    private boolean isMajorGroup(CourseGroup group, String major) {
+        return group.sections().stream().anyMatch(sec -> isMajor(sec, major));
+    }
+
     // ── DFS ──────────────────────────────────────────────────────────────
 
     private void dfs(int idx, long[] mask, List<SecData> selected, int credits, int majorCnt,
                      List<CourseGroup> groups, int[] suffCred, int[] suffMajor,
                      List<SecData> fixed, RecommendationRequest req,
-                     int[] evalCnt, List<Candidate> pool, Map<String, Integer> poolIdx) {
+                     int[] evalCnt, List<Candidate> pool, Map<String, Integer> poolIdx,
+                     Set<Long> blockedCourseIds) {
 
         if (evalCnt[0] >= MAX_EVAL) return;
         if (credits > req.getCreditMax()) return;
@@ -344,12 +355,25 @@ public class RecommendationServiceImpl implements RecommendationService {
             Score score = score(all, blocks, req);
             List<String> reasons = reasons(all, req, score);
 
-            Candidate c = new Candidate(new ArrayList<>(selected), credits, score, reasons);
-            insertPool(pool, poolIdx, c);
+            Candidate c = new Candidate(new ArrayList<>(selected), credits, score, reasons, majorCnt);
+            insertPool(pool, poolIdx, c, req);
             return;
         }
 
         CourseGroup group = groups.get(idx);
+        if (blockedCourseIds.contains(group.courseId())) {
+            dfs(idx + 1, mask, selected, credits, majorCnt,
+                    groups, suffCred, suffMajor, fixed, req, evalCnt, pool, poolIdx, blockedCourseIds);
+            return;
+        }
+
+        boolean preferSkip = checkMajor && majorCnt >= majMin && isMajorGroup(group, req.getUserMajor());
+
+        if (preferSkip) {
+            dfs(idx + 1, mask, selected, credits, majorCnt,
+                    groups, suffCred, suffMajor, fixed, req, evalCnt, pool, poolIdx, blockedCourseIds);
+            if (evalCnt[0] >= MAX_EVAL) return;
+        }
 
         for (SecData sec : group.sections()) {
             if (conflicts(mask, sec.mask())) continue;
@@ -360,17 +384,70 @@ public class RecommendationServiceImpl implements RecommendationService {
             int addedMajor = (checkMajor && isMajor(sec, req.getUserMajor())) ? 1 : 0;
 
             dfs(idx + 1, next, selected, credits + sec.credits(), majorCnt + addedMajor,
-                    groups, suffCred, suffMajor, fixed, req, evalCnt, pool, poolIdx);
+                    groups, suffCred, suffMajor, fixed, req, evalCnt, pool, poolIdx, blockedCourseIds);
 
             selected.remove(selected.size() - 1);
             if (evalCnt[0] >= MAX_EVAL) return;
         }
 
-        dfs(idx + 1, mask, selected, credits, majorCnt,
-                groups, suffCred, suffMajor, fixed, req, evalCnt, pool, poolIdx);
+        if (!preferSkip) {
+            dfs(idx + 1, mask, selected, credits, majorCnt,
+                    groups, suffCred, suffMajor, fixed, req, evalCnt, pool, poolIdx, blockedCourseIds);
+        }
     }
 
     // ── 점수 계산 ─────────────────────────────────────────────────────────
+
+    private void enrichDiversityPool(List<Candidate> pool, Map<String, Integer> poolIdx,
+                                     long[] initMask, int fixedCredits, int fixedMajorCnt,
+                                     List<CourseGroup> groups, int[] suffixCred, int[] suffixMajor,
+                                     List<SecData> fixed, RecommendationRequest req) {
+        List<Candidate> sorted = new ArrayList<>(pool);
+        sorted.sort(Comparator.comparingInt(c -> -c.score().total()));
+        Candidate first = sorted.get(0);
+
+        boolean hasDistinctCandidate = sorted.stream()
+                .skip(1)
+                .anyMatch(c -> similarity(c, first) <= PREFERRED_SIMILARITY_LIMIT);
+        if (hasDistinctCandidate) return;
+
+        Set<Long> blockedCourseIds = first.sections().stream()
+                .map(SecData::courseId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        runDiversitySearch(blockedCourseIds, pool, poolIdx, initMask, fixedCredits, fixedMajorCnt,
+                groups, suffixCred, suffixMajor, fixed, req);
+
+        Optional<Candidate> secondBase = pool.stream()
+                .filter(c -> c != first)
+                .filter(c -> similarity(c, first) <= PREFERRED_SIMILARITY_LIMIT)
+                .max(Comparator.comparingInt(c -> c.score().total()));
+        if (secondBase.isPresent()) {
+            Set<Long> unionBlocked = new LinkedHashSet<>(blockedCourseIds);
+            secondBase.get().sections().stream()
+                    .map(SecData::courseId)
+                    .forEach(unionBlocked::add);
+            runDiversitySearch(unionBlocked, pool, poolIdx, initMask, fixedCredits, fixedMajorCnt,
+                    groups, suffixCred, suffixMajor, fixed, req);
+            return;
+        }
+
+        if (blockedCourseIds.size() <= 1) return;
+
+        Set<Long> partialBlocked = blockedCourseIds.stream()
+                .limit(Math.max(1, blockedCourseIds.size() / 2))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        runDiversitySearch(partialBlocked, pool, poolIdx, initMask, fixedCredits, fixedMajorCnt,
+                groups, suffixCred, suffixMajor, fixed, req);
+    }
+
+    private void runDiversitySearch(Set<Long> blockedCourseIds, List<Candidate> pool, Map<String, Integer> poolIdx,
+                                    long[] initMask, int fixedCredits, int fixedMajorCnt,
+                                    List<CourseGroup> groups, int[] suffixCred, int[] suffixMajor,
+                                    List<SecData> fixed, RecommendationRequest req) {
+        int[] evalCnt = {MAX_EVAL - DIVERSITY_EVAL_LIMIT};
+        dfs(0, initMask.clone(), new ArrayList<>(), fixedCredits, fixedMajorCnt,
+                groups, suffixCred, suffixMajor, fixed, req, evalCnt, pool, poolIdx, blockedCourseIds);
+    }
 
     private Score score(List<SecData> all, List<CustomBlockDto> blocks, RecommendationRequest req) {
         double freeDay = scoreFreeDay(all, req);
@@ -538,7 +615,7 @@ public class RecommendationServiceImpl implements RecommendationService {
 
     // ── 다양성 선택 ───────────────────────────────────────────────────────
 
-    private void insertPool(List<Candidate> pool, Map<String, Integer> idx, Candidate c) {
+    private void insertPool(List<Candidate> pool, Map<String, Integer> idx, Candidate c, RecommendationRequest req) {
         String key = c.scheduleKey();
         if (idx.containsKey(key)) {
             int i = idx.get(key);
@@ -554,10 +631,31 @@ public class RecommendationServiceImpl implements RecommendationService {
         pool.sort(Comparator.comparingInt(x -> -x.score().total()));
         rebuildIdx(pool, idx);
         if (pool.size() > CANDIDATE_POOL_SIZE) {
-            Candidate removed = pool.remove(pool.size() - 1);
+            int removeIdx = poolRemovalIndex(pool, req);
+            Candidate removed = pool.remove(removeIdx);
             idx.remove(removed.scheduleKey());
             rebuildIdx(pool, idx);
         }
+    }
+
+    private int poolRemovalIndex(List<Candidate> pool, RecommendationRequest req) {
+        int start = pool.size() > 1 ? 1 : 0;
+        int removeIdx = start;
+        double worstScore = Double.POSITIVE_INFINITY;
+
+        for (int i = start; i < pool.size(); i++) {
+            double keepScore = poolKeepScore(pool.get(i), req);
+            if (keepScore < worstScore) {
+                worstScore = keepScore;
+                removeIdx = i;
+            }
+        }
+
+        return removeIdx;
+    }
+
+    private double poolKeepScore(Candidate c, RecommendationRequest req) {
+        return c.score().total() - majorDistance(c, req) * MAJOR_POOL_PENALTY;
     }
 
     private void rebuildIdx(List<Candidate> pool, Map<String, Integer> idx) {
@@ -565,7 +663,7 @@ public class RecommendationServiceImpl implements RecommendationService {
         for (int i = 0; i < pool.size(); i++) idx.put(pool.get(i).scheduleKey(), i);
     }
 
-    private List<Candidate> selectDiverse(List<Candidate> pool) {
+    private List<Candidate> selectDiverse(List<Candidate> pool, RecommendationRequest req) {
         if (pool.isEmpty()) return List.of();
 
         List<Candidate> candidates = new ArrayList<>(pool);
@@ -581,23 +679,7 @@ public class RecommendationServiceImpl implements RecommendationService {
         selected.add(candidates.get(0));
 
         while (selected.size() < TOP_K && selected.size() < candidates.size()) {
-            List<Candidate> selectable = selectableCandidates(candidates, selected);
-            Candidate best = null;
-            double bestScore = Double.NEGATIVE_INFINITY;
-
-            for (Candidate cand : selectable) {
-                double normalizedScore = normalizeScore(cand.score().total(), minScore, maxScore);
-                double maxSimilarity = selected.stream()
-                        .mapToDouble(s -> similarity(cand, s))
-                        .max()
-                        .orElse(0.0);
-                double mmrScore = MMR_ALPHA * normalizedScore - (1 - MMR_ALPHA) * maxSimilarity;
-                if (mmrScore > bestScore) {
-                    bestScore = mmrScore;
-                    best = cand;
-                }
-            }
-
+            Candidate best = pickNextCandidate(candidates, selected, req, minScore, maxScore);
             if (best == null) break;
             selected.add(best);
         }
@@ -617,28 +699,87 @@ public class RecommendationServiceImpl implements RecommendationService {
         return filtered.size() >= TOP_K ? filtered : candidates;
     }
 
-    private List<Candidate> selectableCandidates(List<Candidate> candidates, List<Candidate> selected) {
+    private Candidate pickNextCandidate(List<Candidate> candidates, List<Candidate> selected,
+                                        RecommendationRequest req, int minScore, int maxScore) {
         List<Candidate> remaining = candidates.stream()
                 .filter(c -> !selected.contains(c))
                 .toList();
+        if (remaining.isEmpty()) return null;
+
+        for (double limit : List.of(PREFERRED_SIMILARITY_LIMIT, SECONDARY_SIMILARITY_LIMIT, FALLBACK_SIMILARITY_LIMIT)) {
+            List<Candidate> underLimit = remaining.stream()
+                    .filter(c -> maxSimilarity(c, selected) <= limit)
+                    .toList();
+            if (!underLimit.isEmpty()) {
+                return pickBestUnderLimit(underLimit, selected, req, minScore, maxScore, limit);
+            }
+        }
 
         List<Candidate> withoutSameTimeBlocks = remaining.stream()
                 .filter(c -> selected.stream().noneMatch(s -> timeBlockKey(c).equals(timeBlockKey(s))))
                 .toList();
+        List<Candidate> fallback = !withoutSameTimeBlocks.isEmpty() ? withoutSameTimeBlocks : remaining;
 
-        List<Candidate> strict = withoutSameTimeBlocks.stream()
-                .filter(c -> selected.stream().noneMatch(s ->
-                        similarity(c, s) > STRICT_SIMILARITY_LIMIT
-                                || timeBlockSimilarity(c, s) > STRICT_TIME_SIMILARITY_LIMIT))
-                .toList();
-        if (!strict.isEmpty()) return strict;
+        return fallback.stream()
+                .min(Comparator
+                        .comparingDouble((Candidate c) -> maxSimilarity(c, selected))
+                        .thenComparingInt(c -> majorDistance(c, req))
+                        .thenComparingInt(c -> -c.score().total()))
+                .orElse(null);
+    }
 
-        List<Candidate> relaxed = withoutSameTimeBlocks.stream()
-                .filter(c -> selected.stream().noneMatch(s -> similarity(c, s) > RELAXED_SIMILARITY_LIMIT))
-                .toList();
-        if (!relaxed.isEmpty()) return relaxed;
+    private Candidate pickBestUnderLimit(List<Candidate> candidates, List<Candidate> selected,
+                                         RecommendationRequest req, int minScore, int maxScore, double limit) {
+        if (limit > PREFERRED_SIMILARITY_LIMIT) {
+            return candidates.stream()
+                    .min(Comparator
+                            .comparingDouble((Candidate c) -> maxSimilarity(c, selected))
+                            .thenComparingInt(c -> majorDistance(c, req))
+                            .thenComparingInt(c -> -c.score().total()))
+                    .orElse(null);
+        }
 
-        return !withoutSameTimeBlocks.isEmpty() ? withoutSameTimeBlocks : remaining;
+        Candidate best = null;
+        double bestMmrScore = Double.NEGATIVE_INFINITY;
+
+        for (Candidate cand : candidates) {
+            double normalizedScore = normalizeScore(cand.score().total(), minScore, maxScore);
+            double maxSimilarity = maxSimilarity(cand, selected);
+            double majorPenalty = majorDistance(cand, req) * MAJOR_DISTANCE_PENALTY;
+            double mmrScore = MMR_ALPHA * normalizedScore - (1 - MMR_ALPHA) * maxSimilarity - majorPenalty;
+
+            if (mmrScore > bestMmrScore
+                    || (mmrScore == bestMmrScore && isBetterTieBreak(cand, best, req, selected))) {
+                bestMmrScore = mmrScore;
+                best = cand;
+            }
+        }
+
+        return best;
+    }
+
+    private boolean isBetterTieBreak(Candidate cand, Candidate best, RecommendationRequest req, List<Candidate> selected) {
+        if (best == null) return true;
+
+        int majorCompare = Integer.compare(majorDistance(cand, req), majorDistance(best, req));
+        if (majorCompare != 0) return majorCompare < 0;
+
+        int scoreCompare = Integer.compare(cand.score().total(), best.score().total());
+        if (scoreCompare != 0) return scoreCompare > 0;
+
+        return maxSimilarity(cand, selected) < maxSimilarity(best, selected);
+    }
+
+    private double maxSimilarity(Candidate cand, List<Candidate> selected) {
+        return selected.stream()
+                .mapToDouble(s -> similarity(cand, s))
+                .max()
+                .orElse(0.0);
+    }
+
+    private int majorDistance(Candidate cand, RecommendationRequest req) {
+        if (req.getMajorMinCount() <= 0 || !hasMajorCtx(req.getUserMajor())) return 0;
+        return Math.max(0, cand.majorCount() - req.getMajorMinCount());
     }
 
     private double normalizeScore(int score, int minScore, int maxScore) {
@@ -650,7 +791,7 @@ public class RecommendationServiceImpl implements RecommendationService {
         double course = courseSimilarity(a, b);
         double time = timeBlockSimilarity(a, b);
         double freeDay = freeDaySimilarity(a, b);
-        return 0.35 * course + 0.55 * time + 0.10 * freeDay;
+        return 0.50 * course + 0.40 * time + 0.10 * freeDay;
     }
 
     private double courseSimilarity(Candidate a, Candidate b) {
