@@ -38,8 +38,9 @@ public class CourseServiceImpl implements CourseService {
     private final CourseRepository courseRepository;
     private final SectionRepository sectionRepository;
 
-    // 시간 파싱 패턴: "화 18:00~19:00" 또는 "월 09:00~10:30, 수 09:00~10:30"
-    private static final Pattern TIME_PATTERN = Pattern.compile("([월화수목금])\\s*(\\d{1,2}:\\d{2})~(\\d{1,2}:\\d{2})");
+    // 시간 파싱 패턴: "화 18:00~19:00", "월,수 09:00~10:30", "월수 09:00~10:30"
+    private static final Pattern TIME_PATTERN = Pattern.compile("([월화수목금\\s,./·ㆍ+&]+?)\\s*(\\d{1,2}:\\d{2})\\s*~\\s*(\\d{1,2}:\\d{2})");
+    private static final Pattern DAY_PATTERN = Pattern.compile("[월화수목금]");
 
     @Override
     @Transactional(readOnly = true)
@@ -330,15 +331,20 @@ public class CourseServiceImpl implements CourseService {
 
         Matcher matcher = TIME_PATTERN.matcher(timeStr);
         while (matcher.find()) {
-            String dayKor = matcher.group(1);
+            String dayPart = matcher.group(1);
             String startStr = matcher.group(2);
             String endStr = matcher.group(3);
 
-            DayOfWeek dayOfWeek = parseDayOfWeek(dayKor);
             LocalTime startTime = LocalTime.parse(startStr, DateTimeFormatter.ofPattern("H:mm"));
             LocalTime endTime = LocalTime.parse(endStr, DateTimeFormatter.ofPattern("H:mm"));
 
-            slots.add(new TimeSlot(dayOfWeek, startTime, endTime));
+            Matcher dayMatcher = DAY_PATTERN.matcher(dayPart);
+            while (dayMatcher.find()) {
+                DayOfWeek dayOfWeek = parseDayOfWeek(dayMatcher.group());
+                if (dayOfWeek != null) {
+                    slots.add(new TimeSlot(dayOfWeek, startTime, endTime));
+                }
+            }
         }
 
         return slots;
