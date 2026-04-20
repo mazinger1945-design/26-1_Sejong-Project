@@ -28,10 +28,13 @@ public class RecommendationServiceImpl implements RecommendationService {
     private static final int SLOT_UNIT = 15;
     private static final int SLOTS_PER_DAY = 56;        // (22-8)*60/15
     private static final int TOP_K = 3;
-    private static final int MAX_EVAL = 10_000;
-    private static final int CANDIDATE_POOL_SIZE = 50;
-    private static final double MMR_ALPHA = 0.70;
-    private static final double MIN_SCORE_RATIO = 0.70;
+    private static final int MAX_EVAL = 30_000;
+    private static final int CANDIDATE_POOL_SIZE = 200;
+    private static final double MMR_ALPHA = 0.50;
+    private static final double MIN_SCORE_RATIO = 0.50;
+    private static final double STRICT_SIMILARITY_LIMIT = 0.55;
+    private static final double STRICT_TIME_SIMILARITY_LIMIT = 0.60;
+    private static final double RELAXED_SIMILARITY_LIMIT = 0.70;
 
     private static final double W_FREE_DAY = 30.0;
     private static final double W_TIME = 25.0;
@@ -110,6 +113,8 @@ public class RecommendationServiceImpl implements RecommendationService {
         Set<String> excludedCodes = new HashSet<>(req.getExcludedCourseCodes());
 
         List<SecData> candidates = allData.values().stream()
+                .filter(s -> s.credits() > 0)
+                .filter(s -> !s.times().isEmpty())
                 .filter(s -> !excludedIds.contains(s.courseId()))
                 .filter(s -> !excludedCodes.contains(s.courseCode()))
                 .filter(s -> !fixedGroupKeys.contains(s.groupKey()))
@@ -346,7 +351,6 @@ public class RecommendationServiceImpl implements RecommendationService {
 
         CourseGroup group = groups.get(idx);
 
-        // 분반 선택 시도
         for (SecData sec : group.sections()) {
             if (conflicts(mask, sec.mask())) continue;
             if (credits + sec.credits() > req.getCreditMax()) continue;
@@ -362,7 +366,6 @@ public class RecommendationServiceImpl implements RecommendationService {
             if (evalCnt[0] >= MAX_EVAL) return;
         }
 
-        // 스킵
         dfs(idx + 1, mask, selected, credits, majorCnt,
                 groups, suffCred, suffMajor, fixed, req, evalCnt, pool, poolIdx);
     }
@@ -618,12 +621,24 @@ public class RecommendationServiceImpl implements RecommendationService {
         List<Candidate> remaining = candidates.stream()
                 .filter(c -> !selected.contains(c))
                 .toList();
+
         List<Candidate> withoutSameTimeBlocks = remaining.stream()
                 .filter(c -> selected.stream().noneMatch(s -> timeBlockKey(c).equals(timeBlockKey(s))))
                 .toList();
 
-        int needed = TOP_K - selected.size();
-        return withoutSameTimeBlocks.size() >= needed ? withoutSameTimeBlocks : remaining;
+        List<Candidate> strict = withoutSameTimeBlocks.stream()
+                .filter(c -> selected.stream().noneMatch(s ->
+                        similarity(c, s) > STRICT_SIMILARITY_LIMIT
+                                || timeBlockSimilarity(c, s) > STRICT_TIME_SIMILARITY_LIMIT))
+                .toList();
+        if (!strict.isEmpty()) return strict;
+
+        List<Candidate> relaxed = withoutSameTimeBlocks.stream()
+                .filter(c -> selected.stream().noneMatch(s -> similarity(c, s) > RELAXED_SIMILARITY_LIMIT))
+                .toList();
+        if (!relaxed.isEmpty()) return relaxed;
+
+        return !withoutSameTimeBlocks.isEmpty() ? withoutSameTimeBlocks : remaining;
     }
 
     private double normalizeScore(int score, int minScore, int maxScore) {
@@ -635,7 +650,7 @@ public class RecommendationServiceImpl implements RecommendationService {
         double course = courseSimilarity(a, b);
         double time = timeBlockSimilarity(a, b);
         double freeDay = freeDaySimilarity(a, b);
-        return 0.5 * course + 0.4 * time + 0.1 * freeDay;
+        return 0.35 * course + 0.55 * time + 0.10 * freeDay;
     }
 
     private double courseSimilarity(Candidate a, Candidate b) {

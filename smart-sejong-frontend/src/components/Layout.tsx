@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { CalendarCheck, GraduationCap, LogOut } from 'lucide-react'
+import { CalendarCheck, GraduationCap, LogOut, User } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
@@ -11,7 +11,7 @@ const navItems = [
 
 export default function Layout() {
   const navigate = useNavigate()
-  const { logout: clearUser } = useAuthStore()
+  const { user, logout: clearUser } = useAuthStore()
 
   const handleLogout = async () => {
     try {
@@ -53,13 +53,22 @@ export default function Layout() {
               })}
             </nav>
           </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 text-gray-600 transition-colors hover:text-red-600"
-          >
-            <LogOut className="h-5 w-5" />
-            <span className="hidden sm:inline">로그아웃</span>
-          </button>
+          <div className="flex items-center gap-4">
+            <NavLink
+              to="/profile"
+              className="flex items-center gap-2 text-gray-600 transition-colors hover:text-gray-900"
+            >
+              <User className="h-5 w-5" />
+              <span className="hidden sm:inline">{user?.nickname || user?.student_id || '사용자'}</span>
+            </NavLink>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 text-gray-600 transition-colors hover:text-red-600"
+            >
+              <LogOut className="h-5 w-5" />
+              <span className="hidden sm:inline">로그아웃</span>
+            </button>
+          </div>
         </div>
       </header>
 

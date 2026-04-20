@@ -6,6 +6,7 @@ import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import LearningPage from './pages/LearningPage'
 import RecommendationPage from './pages/RecommendationPage'
+import ProfilePage from './pages/ProfilePage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
@@ -48,6 +49,7 @@ function App() {
           <Route index element={<Navigate to="/learning" replace />} />
           <Route path="learning" element={<LearningPage />} />
           <Route path="recommendation" element={<RecommendationPage />} />
+          <Route path="profile" element={<ProfilePage />} />
         </Route>
         <Route
           path="*"
