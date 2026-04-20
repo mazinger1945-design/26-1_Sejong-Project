@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import toast from 'react-hot-toast'
@@ -109,14 +108,9 @@ export default function LearningPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">학습 현황</h1>
-            <p className="text-gray-600">기이수 성적표를 업로드하고 이수 학점을 확인합니다.</p>
-          </div>
-          <Link to="/recommendation" className="btn-primary text-center">
-            시간표 추천으로 이동
-          </Link>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">학습 현황</h1>
+          <p className="text-gray-600">기이수 성적표를 업로드하고 이수 학점을 확인합니다.</p>
         </div>
 
         <section className="card">

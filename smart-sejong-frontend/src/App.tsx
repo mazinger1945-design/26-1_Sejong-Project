@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import { normalizeUserInfo } from './lib/user'
+import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import LearningPage from './pages/LearningPage'
 import RecommendationPage from './pages/RecommendationPage'
@@ -38,30 +39,22 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route
-          path="/"
           element={
             <PrivateRoute>
-              <LearningPage />
+              <Layout />
             </PrivateRoute>
           }
-        />
+        >
+          <Route index element={<Navigate to="/learning" replace />} />
+          <Route path="learning" element={<LearningPage />} />
+          <Route path="recommendation" element={<RecommendationPage />} />
+        </Route>
         <Route
-          path="/learning"
+          path="*"
           element={
-            <PrivateRoute>
-              <LearningPage />
-            </PrivateRoute>
+            <Navigate to="/login" replace />
           }
         />
-        <Route
-          path="/recommendation"
-          element={
-            <PrivateRoute>
-              <RecommendationPage />
-            </PrivateRoute>
-          }
-        />
-        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
   )
