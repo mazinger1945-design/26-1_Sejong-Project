@@ -84,7 +84,7 @@ const PREF_LABELS: Record<PreferenceLevel, string> = {
 // 전공 과목 수 0~7개
 const MAJOR_COUNT_OPTIONS: { label: string; value: number }[] = [
   { label: '상관없음', value: 0 },
-  ...Array.from({ length: 7 }, (_, i) => ({ label: `${i + 1}개 이상`, value: i + 1 })),
+  ...Array.from({ length: 7 }, (_, i) => ({ label: `${i + 1}개`, value: i + 1 })),
 ]
 
 let _tempId = 1
@@ -760,11 +760,8 @@ export default function RecommendationPage() {
             })()}
           </FilterCard>
 
-          {/* ── 선호 조건 ── */}
-          <SectionHeader label="선호 조건" />
-
-          {/* 6. 공강 희망 요일 */}
-          <FilterCard title="공강 희망 요일">
+          {/* 6. 공강 요일 */}
+          <FilterCard title="공강 요일">
             <div className="flex gap-1.5">
               {DAYS.map((d) => (
                 <button
@@ -780,9 +777,40 @@ export default function RecommendationPage() {
                 </button>
               ))}
             </div>
+            <p className="text-[11px] text-gray-400 mt-1.5">선택한 요일엔 수업을 배정하지 않습니다 (하드 조건)</p>
           </FilterCard>
 
-          {/* 7. 시간대 선호 */}
+          {/* 7. 전공 과목 수 */}
+          <FilterCard title="전공 과목 수">
+            <div className="flex gap-1.5 flex-wrap">
+              {MAJOR_COUNT_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => { setFilters((p) => ({ ...p, majorMinCount: opt.value })); setRecommendations([]) }}
+                  className={`flex-1 py-1.5 text-xs rounded-lg border font-medium min-w-[48px] transition-colors ${
+                    filters.majorMinCount === opt.value
+                      ? 'bg-indigo-100 border-indigo-400 text-indigo-700'
+                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1.5">
+              내 전공 그룹 기준 정확히 n개 포함 (하드 조건) · 나머지는 교양선택에서 추천
+            </p>
+            {!hasMajorClassificationContext(filters.userMajor) && (
+              <p className="text-[11px] text-amber-600 mt-1">
+                로그인 후 학과 정보가 있어야 전공 과목 수 조건을 정확히 적용할 수 있습니다.
+              </p>
+            )}
+          </FilterCard>
+
+          {/* ── 선호 조건 ── */}
+          <SectionHeader label="선호 조건" />
+
+          {/* 8. 시간대 선호 */}
           <FilterCard title="시간대 선호">
             <div className="space-y-2">
               {([
@@ -847,32 +875,6 @@ export default function RecommendationPage() {
             </label>
           </FilterCard>
 
-          {/* 10. 전공 과목 수 */}
-          <FilterCard title="전공 최소 과목 수">
-            <div className="flex gap-1.5 flex-wrap">
-              {MAJOR_COUNT_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => { setFilters((p) => ({ ...p, majorMinCount: opt.value })); setRecommendations([]) }}
-                  className={`flex-1 py-1.5 text-xs rounded-lg border font-medium min-w-[48px] transition-colors ${
-                    filters.majorMinCount === opt.value
-                      ? 'bg-indigo-100 border-indigo-400 text-indigo-700'
-                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <p className="text-[11px] text-gray-400 mt-1.5">
-              내 전공 그룹 기준 전공필수·전공선택·전공기초 과목 수 (하드 조건)
-            </p>
-            {!hasMajorClassificationContext(filters.userMajor) && (
-              <p className="text-[11px] text-amber-600 mt-1">
-                로그인 후 학과 정보가 있어야 전공 과목 수 조건을 정확히 적용할 수 있습니다.
-              </p>
-            )}
-          </FilterCard>
 
           {/* 이수과목 자동 제외 안내 */}
           {completedCourseInfo.length > 0 && (
@@ -923,8 +925,7 @@ export default function RecommendationPage() {
                       <span key={i} className="text-xs bg-white border border-gray-200 rounded px-2 py-0.5 text-gray-700">{r}</span>
                     ))}
                   </div>
-                  <div className="mt-2 grid grid-cols-4 gap-1 text-[10px] text-gray-500">
-                    <ScoreBar label="공강" value={selectedRec.scoreBreakdown.freeDay} max={30} />
+                  <div className="mt-2 grid grid-cols-3 gap-1 text-[10px] text-gray-500">
                     <ScoreBar label="시간대" value={selectedRec.scoreBreakdown.timePreference} max={25} />
                     <ScoreBar label="공백" value={selectedRec.scoreBreakdown.gap} max={20} />
                     <ScoreBar label="점심" value={selectedRec.scoreBreakdown.lunch} max={15} />
