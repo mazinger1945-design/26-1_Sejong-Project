@@ -31,11 +31,12 @@ public class RecommendationServiceImpl implements RecommendationService {
     private static final int DFS_ROUNDS = 5;
     private static final int ROUND_EVAL = 8_000;
     private static final int CANDIDATE_POOL_SIZE = 200;
-    private static final double MMR_ALPHA = 0.50;
+    private static final double MMR_ALPHA = 0.25;
     private static final double MIN_SCORE_RATIO = 0.50;
-    private static final double STRICT_SIMILARITY_LIMIT = 0.55;
-    private static final double STRICT_TIME_SIMILARITY_LIMIT = 0.60;
-    private static final double RELAXED_SIMILARITY_LIMIT = 0.70;
+    private static final double STRICT_SIMILARITY_LIMIT = 0.25;
+    private static final double STRICT_TIME_SIMILARITY_LIMIT = 0.30;
+    private static final double RELAXED_SIMILARITY_LIMIT = 0.45;
+    private static final double POOL_SIMILARITY_LIMIT = 0.40;
 
     private static final double W_TIME = 25.0;
     private static final double W_GAP = 20.0;
@@ -542,6 +543,8 @@ private double scoreTime(List<SecData> all, RecommendationRequest req) {
 
     private void insertPool(List<Candidate> pool, Map<String, Integer> idx, Candidate c) {
         String key = c.scheduleKey();
+
+        // 완전히 동일한 시간표 → 점수가 더 높을 때만 교체
         if (idx.containsKey(key)) {
             int i = idx.get(key);
             if (c.score().total() > pool.get(i).score().total()) {
@@ -551,6 +554,28 @@ private double scoreTime(List<SecData> all, RecommendationRequest req) {
             }
             return;
         }
+
+        // 기존 pool 중 가장 유사한 후보 탐색
+        Candidate mostSimilar = null;
+        double maxSim = 0;
+        for (Candidate existing : pool) {
+            double sim = similarity(c, existing);
+            if (sim > maxSim) { maxSim = sim; mostSimilar = existing; }
+        }
+
+        if (maxSim > POOL_SIMILARITY_LIMIT) {
+            // 너무 유사 → 점수가 더 높을 때만 기존 것을 교체 (그냥 추가는 안 함)
+            if (mostSimilar != null && c.score().total() > mostSimilar.score().total()) {
+                int simIdx = idx.get(mostSimilar.scheduleKey());
+                idx.remove(mostSimilar.scheduleKey());
+                pool.set(simIdx, c);
+                pool.sort(Comparator.comparingInt(x -> -x.score().total()));
+                rebuildIdx(pool, idx);
+            }
+            return;
+        }
+
+        // 충분히 다양한 후보 → 정상 삽입
         pool.add(c);
         idx.put(key, pool.size() - 1);
         pool.sort(Comparator.comparingInt(x -> -x.score().total()));
