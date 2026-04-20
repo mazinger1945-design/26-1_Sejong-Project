@@ -29,8 +29,9 @@ public class RecommendationServiceImpl implements RecommendationService {
     private static final int SLOTS_PER_DAY = 56;        // (22-8)*60/15
     private static final int TOP_K = 3;
     private static final int MAX_EVAL = 10_000;
-    private static final int POOL_SIZE = TOP_K * 8;
-    private static final double DIVERSITY_PENALTY = 24.0;
+    private static final int CANDIDATE_POOL_SIZE = 50;
+    private static final double MMR_ALPHA = 0.70;
+    private static final double MIN_SCORE_RATIO = 0.70;
 
     private static final double W_FREE_DAY = 30.0;
     private static final double W_TIME = 25.0;
@@ -73,6 +74,9 @@ public class RecommendationServiceImpl implements RecommendationService {
         String courseKey() {
             return sections.stream().mapToLong(SecData::courseId).sorted()
                     .mapToObj(Long::toString).collect(Collectors.joining(","));
+        }
+        String scheduleKey() {
+            return sections.stream().map(SecData::groupKey).sorted().collect(Collectors.joining("|"));
         }
     }
 
@@ -532,7 +536,7 @@ public class RecommendationServiceImpl implements RecommendationService {
     // ── 다양성 선택 ───────────────────────────────────────────────────────
 
     private void insertPool(List<Candidate> pool, Map<String, Integer> idx, Candidate c) {
-        String key = c.courseKey();
+        String key = c.scheduleKey();
         if (idx.containsKey(key)) {
             int i = idx.get(key);
             if (c.score().total() > pool.get(i).score().total()) {
@@ -546,46 +550,145 @@ public class RecommendationServiceImpl implements RecommendationService {
         idx.put(key, pool.size() - 1);
         pool.sort(Comparator.comparingInt(x -> -x.score().total()));
         rebuildIdx(pool, idx);
-        if (pool.size() > POOL_SIZE) {
+        if (pool.size() > CANDIDATE_POOL_SIZE) {
             Candidate removed = pool.remove(pool.size() - 1);
-            idx.remove(removed.courseKey());
+            idx.remove(removed.scheduleKey());
             rebuildIdx(pool, idx);
         }
     }
 
     private void rebuildIdx(List<Candidate> pool, Map<String, Integer> idx) {
         idx.clear();
-        for (int i = 0; i < pool.size(); i++) idx.put(pool.get(i).courseKey(), i);
+        for (int i = 0; i < pool.size(); i++) idx.put(pool.get(i).scheduleKey(), i);
     }
 
     private List<Candidate> selectDiverse(List<Candidate> pool) {
-        if (pool.size() <= TOP_K) return new ArrayList<>(pool);
-        List<Candidate> remaining = new ArrayList<>(pool);
-        remaining.sort(Comparator.comparingInt(x -> -x.score().total()));
-        List<Candidate> selected = new ArrayList<>();
-        selected.add(remaining.remove(0));
+        if (pool.isEmpty()) return List.of();
 
-        while (selected.size() < TOP_K && !remaining.isEmpty()) {
-            int bestIdx = 0;
+        List<Candidate> candidates = new ArrayList<>(pool);
+        candidates.sort(Comparator.comparingInt(x -> -x.score().total()));
+        candidates = qualityCandidates(candidates);
+
+        if (candidates.size() <= TOP_K) return candidates;
+
+        int minScore = candidates.stream().mapToInt(c -> c.score().total()).min().orElse(0);
+        int maxScore = candidates.stream().mapToInt(c -> c.score().total()).max().orElse(0);
+
+        List<Candidate> selected = new ArrayList<>();
+        selected.add(candidates.get(0));
+
+        while (selected.size() < TOP_K && selected.size() < candidates.size()) {
+            List<Candidate> selectable = selectableCandidates(candidates, selected);
+            Candidate best = null;
             double bestScore = Double.NEGATIVE_INFINITY;
-            for (int i = 0; i < remaining.size(); i++) {
-                Candidate cand = remaining.get(i);
-                double maxSim = selected.stream().mapToDouble(s -> jaccard(cand, s)).max().orElse(0);
-                double adj = cand.score().total() - maxSim * DIVERSITY_PENALTY;
-                if (adj > bestScore) { bestScore = adj; bestIdx = i; }
+
+            for (Candidate cand : selectable) {
+                double normalizedScore = normalizeScore(cand.score().total(), minScore, maxScore);
+                double maxSimilarity = selected.stream()
+                        .mapToDouble(s -> similarity(cand, s))
+                        .max()
+                        .orElse(0.0);
+                double mmrScore = MMR_ALPHA * normalizedScore - (1 - MMR_ALPHA) * maxSimilarity;
+                if (mmrScore > bestScore) {
+                    bestScore = mmrScore;
+                    best = cand;
+                }
             }
-            selected.add(remaining.remove(bestIdx));
+
+            if (best == null) break;
+            selected.add(best);
         }
+
         return selected;
     }
 
-    private double jaccard(Candidate a, Candidate b) {
+    private List<Candidate> qualityCandidates(List<Candidate> candidates) {
+        if (candidates.size() <= TOP_K) return candidates;
+
+        int bestScore = candidates.get(0).score().total();
+        double minAllowed = bestScore * MIN_SCORE_RATIO;
+        List<Candidate> filtered = candidates.stream()
+                .filter(c -> c.score().total() >= minAllowed)
+                .toList();
+
+        return filtered.size() >= TOP_K ? filtered : candidates;
+    }
+
+    private List<Candidate> selectableCandidates(List<Candidate> candidates, List<Candidate> selected) {
+        List<Candidate> remaining = candidates.stream()
+                .filter(c -> !selected.contains(c))
+                .toList();
+        List<Candidate> withoutSameTimeBlocks = remaining.stream()
+                .filter(c -> selected.stream().noneMatch(s -> timeBlockKey(c).equals(timeBlockKey(s))))
+                .toList();
+
+        int needed = TOP_K - selected.size();
+        return withoutSameTimeBlocks.size() >= needed ? withoutSameTimeBlocks : remaining;
+    }
+
+    private double normalizeScore(int score, int minScore, int maxScore) {
+        if (maxScore == minScore) return 1.0;
+        return (double) (score - minScore) / (maxScore - minScore);
+    }
+
+    private double similarity(Candidate a, Candidate b) {
+        double course = courseSimilarity(a, b);
+        double time = timeBlockSimilarity(a, b);
+        double freeDay = freeDaySimilarity(a, b);
+        return 0.5 * course + 0.4 * time + 0.1 * freeDay;
+    }
+
+    private double courseSimilarity(Candidate a, Candidate b) {
         Set<Long> sa = a.sections().stream().map(SecData::courseId).collect(Collectors.toSet());
         Set<Long> sb = b.sections().stream().map(SecData::courseId).collect(Collectors.toSet());
-        if (sa.isEmpty() && sb.isEmpty()) return 1.0;
-        long inter = sa.stream().filter(sb::contains).count();
-        long union = sa.size() + sb.size() - inter;
-        return union == 0 ? 0 : (double) inter / union;
+        return jaccard(sa, sb);
+    }
+
+    private double timeBlockSimilarity(Candidate a, Candidate b) {
+        long intersection = 0;
+        long union = 0;
+
+        for (int i = 0; i < 5; i++) {
+            int day = i;
+            long aMask = a.sections().stream().map(SecData::mask).mapToLong(m -> m[day]).reduce(0L, (x, y) -> x | y);
+            long bMask = b.sections().stream().map(SecData::mask).mapToLong(m -> m[day]).reduce(0L, (x, y) -> x | y);
+            intersection += Long.bitCount(aMask & bMask);
+            union += Long.bitCount(aMask | bMask);
+        }
+
+        return union == 0 ? 1.0 : (double) intersection / union;
+    }
+
+    private double freeDaySimilarity(Candidate a, Candidate b) {
+        return jaccard(freeDays(a), freeDays(b));
+    }
+
+    private Set<Integer> freeDays(Candidate c) {
+        Set<Integer> busyDays = c.sections().stream()
+                .flatMap(s -> s.times().stream())
+                .filter(t -> t.dayIdx() >= 0)
+                .map(TimeInfo::dayIdx)
+                .collect(Collectors.toSet());
+        Set<Integer> freeDays = new HashSet<>();
+        for (int i = 0; i < 5; i++) {
+            if (!busyDays.contains(i)) freeDays.add(i);
+        }
+        return freeDays;
+    }
+
+    private String timeBlockKey(Candidate c) {
+        return c.sections().stream()
+                .flatMap(s -> s.times().stream())
+                .map(t -> t.dayIdx() + "-" + t.startMin() + "-" + t.endMin())
+                .sorted()
+                .collect(Collectors.joining("|"));
+    }
+
+    private <T> double jaccard(Set<T> a, Set<T> b) {
+        if (a.isEmpty() && b.isEmpty()) return 1.0;
+        long intersection = a.stream().filter(b::contains).count();
+        long union = a.size() + b.size() - intersection;
+        return union == 0 ? 0 : (double) intersection / union;
     }
 
     // ── 전공 판정 ─────────────────────────────────────────────────────────
