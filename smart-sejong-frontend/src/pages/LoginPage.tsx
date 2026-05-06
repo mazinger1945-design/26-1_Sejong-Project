@@ -39,13 +39,11 @@ export default function LoginPage() {
       
       toast.success('로그인에 성공했습니다!')
       navigate('/recommendation', { replace: true })
-    } catch (error: any) {
-      console.error('Login error:', error)
-      const errorMessage = error?.response?.data?.message || error?.message || '로그인에 실패했습니다.'
+    } catch (error: unknown) {
+      const err = error as { code?: string; message?: string; response?: { data?: { message?: string } } }
+      const errorMessage = err.response?.data?.message ?? err.message ?? '로그인에 실패했습니다.'
       toast.error(errorMessage)
-      
-      // 백엔드가 실행되지 않은 경우 안내
-      if (error?.code === 'ERR_NETWORK' || error?.message?.includes('Failed to fetch')) {
+      if (err.code === 'ERR_NETWORK' || err.message?.includes('Failed to fetch')) {
         toast.error('백엔드 서버가 실행 중인지 확인해주세요. (http://localhost:8080)')
       }
     } finally {

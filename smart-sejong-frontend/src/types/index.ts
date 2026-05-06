@@ -39,6 +39,7 @@ export interface UserProfileApiResponse {
 }
 
 export interface UserInfo {
+  id?: number
   nickname: string
   student_id?: string
   major?: string
@@ -131,6 +132,10 @@ export interface Timetable {
 export interface TimetableItem {
   item_id: number
   section_id?: number
+  course_id?: number
+  course_code?: string
+  section_number?: string
+  professor?: string
   name: string
   day: string
   start: string
@@ -163,9 +168,16 @@ export interface Group {
   members?: GroupMember[]
 }
 
+export interface GroupDetail extends Group {
+  invite_code?: string
+  members: GroupMember[]
+}
+
 export interface GroupMember {
   user_id: number
   nickname: string
+  active_timetable_id?: number | null
+  active_timetable_name?: string | null
   timetable?: TimetableItem[]
 }
 

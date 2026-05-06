@@ -91,11 +91,9 @@ function buildLookupKeys(value: string | null | undefined): string[] {
   const keys = new Set<string>([normalized])
   let current = normalized
 
-  while (true) {
+  for (;;) {
     const stripped = current.replace(/(학과|전공)$/u, '')
-    if (!stripped || stripped === current) {
-      break
-    }
+    if (!stripped || stripped === current) break
     keys.add(stripped)
     current = stripped
   }

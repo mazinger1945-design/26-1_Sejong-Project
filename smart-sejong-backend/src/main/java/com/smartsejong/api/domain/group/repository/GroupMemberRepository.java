@@ -2,6 +2,7 @@ package com.smartsejong.api.domain.group.repository;
 
 import com.smartsejong.api.domain.group.entity.GroupMember;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -20,4 +21,8 @@ public interface GroupMemberRepository extends JpaRepository<GroupMember, Long> 
     List<GroupMember> findByGroupIdWithUserAndActiveTimetable(@Param("groupId") Long groupId);
 
     long countByGroupId(Long groupId);
+
+    @Modifying
+    @Query("UPDATE GroupMember gm SET gm.activeTimetable = NULL WHERE gm.activeTimetable.id = :timetableId")
+    int clearActiveTimetableByTimetableId(@Param("timetableId") Long timetableId);
 }

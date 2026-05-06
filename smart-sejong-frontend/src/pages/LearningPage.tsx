@@ -5,43 +5,7 @@ import toast from 'react-hot-toast'
 import { Upload, FileSpreadsheet, Award, BookX } from 'lucide-react'
 import { Progress } from '@/components/ui/Progress'
 import { CourseCard } from '@/components/learning/CourseCard'
-
-/** 이수과목 정보를 localStorage에 저장 (추천 페이지에서 사용) */
-export const COMPLETED_COURSES_STORAGE_KEY = 'completed_course_info'
-
-export interface CompletedCourseInfo {
-  courseCode: string
-  courseName: string
-}
-
-export function saveCompletedCourseInfo(items: CompletedCourseInfo[]): void {
-  localStorage.setItem(COMPLETED_COURSES_STORAGE_KEY, JSON.stringify(items))
-}
-
-/** @deprecated 하위 호환용 - loadCompletedCourseInfo 사용 권장 */
-export function saveCompletedCourseCodes(_codes: string[]): void {
-  // no-op: saveCompletedCourseInfo 로 대체
-}
-
-export function loadCompletedCourseInfo(): CompletedCourseInfo[] {
-  try {
-    const raw = localStorage.getItem(COMPLETED_COURSES_STORAGE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as unknown
-    // 구형 string[] 포맷 호환
-    if (Array.isArray(parsed) && typeof parsed[0] === 'string') {
-      return (parsed as string[]).map((c) => ({ courseCode: c, courseName: '' }))
-    }
-    return parsed as CompletedCourseInfo[]
-  } catch {
-    return []
-  }
-}
-
-/** @deprecated 하위 호환 */
-export function loadCompletedCourseCodes(): string[] {
-  return loadCompletedCourseInfo().map((i) => i.courseCode)
-}
+import { saveCompletedCourseInfo } from '@/lib/completedCourses'
 
 const GRADUATION_REQUIREMENTS = {
   total: 130,

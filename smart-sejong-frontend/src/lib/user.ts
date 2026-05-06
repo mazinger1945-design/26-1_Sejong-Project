@@ -13,6 +13,7 @@ export function normalizeUserInfo(user: UserLike | null | undefined): UserInfo |
     '사용자'
 
   return {
+    id: user.id,
     nickname,
     student_id: user.student_id ?? user.studentId,
     major: user.major ?? '',

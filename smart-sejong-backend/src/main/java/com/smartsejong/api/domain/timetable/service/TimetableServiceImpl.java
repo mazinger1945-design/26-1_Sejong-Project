@@ -3,6 +3,7 @@ package com.smartsejong.api.domain.timetable.service;
 import com.smartsejong.api.common.enums.DayOfWeek;
 import com.smartsejong.api.domain.course.entity.Section;
 import com.smartsejong.api.domain.course.repository.SectionRepository;
+import com.smartsejong.api.domain.group.repository.GroupMemberRepository;
 import com.smartsejong.api.domain.timetable.dto.*;
 import com.smartsejong.api.domain.timetable.entity.Timetable;
 import com.smartsejong.api.domain.timetable.entity.TimetableItem;
@@ -28,6 +29,7 @@ public class TimetableServiceImpl implements TimetableService {
     private final TimetableItemRepository timetableItemRepository;
     private final SectionRepository sectionRepository;
     private final UserRepository userRepository;
+    private final GroupMemberRepository groupMemberRepository;
 
     @Override
     public CreateTimetableResponse create(Long userId, CreateTimetableRequest request) {
@@ -66,6 +68,7 @@ public class TimetableServiceImpl implements TimetableService {
     @Override
     public void delete(Long userId, Long timetableId) {
         Timetable timetable = findAndVerify(userId, timetableId);
+        groupMemberRepository.clearActiveTimetableByTimetableId(timetableId);
         timetableRepository.delete(timetable);
     }
 

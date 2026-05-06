@@ -18,7 +18,7 @@ import type {
   CreateTimetableRequest,
   CreateTimetableResponse,
   Group,
-  GroupMember,
+  GroupDetail,
   CreateGroupRequest,
   CreateGroupResponse,
   JoinGroupRequest,
@@ -341,21 +341,21 @@ class ApiClient {
 
   // Timetable APIs
   async createTimetable(request: CreateTimetableRequest): Promise<CreateTimetableResponse> {
-    const { data } = await this.client.post<CreateTimetableResponse>(
+    const { data } = await this.client.post<{ status?: number; data?: CreateTimetableResponse }>(
       '/api/timetables',
       request
     )
-    return data
+    return data?.data ?? (data as unknown as CreateTimetableResponse)
   }
 
   async getTimetables(): Promise<Timetable[]> {
-    const { data } = await this.client.get<Timetable[]>('/api/timetables')
-    return data
+    const { data } = await this.client.get<{ status?: number; data?: Timetable[] }>('/api/timetables')
+    return data?.data ?? (data as unknown as Timetable[]) ?? []
   }
 
   async getTimetable(id: number): Promise<Timetable> {
-    const { data } = await this.client.get<Timetable>(`/api/timetables/${id}`)
-    return data
+    const { data } = await this.client.get<{ status?: number; data?: Timetable }>(`/api/timetables/${id}`)
+    return data?.data ?? (data as unknown as Timetable)
   }
 
   async updateTimetableName(id: number, name: string): Promise<void> {
@@ -368,22 +368,22 @@ class ApiClient {
 
   // Timetable Item APIs
   async addSectionItem(timetableId: number, sectionId: number): Promise<{ item_id: number }> {
-    const { data } = await this.client.post<{ item_id: number }>(
+    const { data } = await this.client.post<{ status?: number; data?: { item_id: number } }>(
       `/api/timetables/${timetableId}/items/section`,
       { section_id: sectionId }
     )
-    return data
+    return data?.data ?? (data as unknown as { item_id: number })
   }
 
   async addCustomItem(
     timetableId: number,
     item: { name: string; day: string; start: string; end: string }
   ): Promise<{ item_id: number }> {
-    const { data } = await this.client.post<{ item_id: number }>(
+    const { data } = await this.client.post<{ status?: number; data?: { item_id: number } }>(
       `/api/timetables/${timetableId}/items/custom`,
       item
     )
-    return data
+    return data?.data ?? (data as unknown as { item_id: number })
   }
 
   async updateCustomItem(
@@ -398,11 +398,11 @@ class ApiClient {
   }
 
   async togglePin(itemId: number, isPinned: boolean): Promise<{ item_id: number; is_pinned: boolean }> {
-    const { data } = await this.client.patch<{ item_id: number; is_pinned: boolean }>(
+    const { data } = await this.client.patch<{ status?: number; data?: { item_id: number; is_pinned: boolean } }>(
       `/api/timetables/items/${itemId}/pin`,
       { is_pinned: isPinned }
     )
-    return data
+    return data?.data ?? (data as unknown as { item_id: number; is_pinned: boolean })
   }
 
   // Group APIs
@@ -416,10 +416,8 @@ class ApiClient {
     return data
   }
 
-  async getGroup(id: number): Promise<Group & { members: GroupMember[] }> {
-    const { data } = await this.client.get<Group & { members: GroupMember[] }>(
-      `/api/groups/${id}`
-    )
+  async getGroup(id: number): Promise<GroupDetail> {
+    const { data } = await this.client.get<GroupDetail>(`/api/groups/${id}`)
     return data
   }
 

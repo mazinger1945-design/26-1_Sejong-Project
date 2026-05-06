@@ -92,7 +92,13 @@ public class GroupServiceImpl implements GroupService {
                 .map(member -> GroupMemberResponse.from(member, activeTimetableItems(member)))
                 .toList();
 
-        return new GroupDetailResponse(group.getId(), group.getName(), memberResponses.size(), memberResponses);
+        return new GroupDetailResponse(
+                group.getId(),
+                group.getName(),
+                memberResponses.size(),
+                group.getInviteCode(),
+                memberResponses
+        );
     }
 
     @Override
