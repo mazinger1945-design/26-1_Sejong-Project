@@ -36,6 +36,7 @@ public class RecommendationResponseDto {
         private String college;
         private String department;
         private List<TimeDto> times;
+        private int wishlistCount;
     }
 
     @Getter

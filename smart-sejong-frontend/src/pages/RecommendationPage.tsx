@@ -93,7 +93,7 @@ const PREF_LABELS: Record<PreferenceLevel, string> = {
 // 전공 과목 수 0~7개
 const MAJOR_COUNT_OPTIONS: { label: string; value: number }[] = [
   { label: '상관없음', value: 0 },
-  ...Array.from({ length: 7 }, (_, i) => ({ label: `${i + 1}개 이상`, value: i + 1 })),
+  ...Array.from({ length: 7 }, (_, i) => ({ label: `${i + 1}개`, value: i + 1 })),
 ]
 
 let _tempId = 1
@@ -827,10 +827,7 @@ export default function RecommendationPage() {
             })()}
           </FilterCard>
 
-          {/* ── 선호 조건 ── */}
-          <SectionHeader label="선호 조건" />
-
-          {/* 6. 공강 희망 요일 */}
+          {/* 5. 공강 희망 요일 (하드 조건) */}
           <FilterCard title="공강 희망 요일">
             <div className="flex gap-1.5">
               {DAYS.map((d) => (
@@ -847,7 +844,13 @@ export default function RecommendationPage() {
                 </button>
               ))}
             </div>
+            <p className="text-[11px] text-amber-600 mt-1.5">
+              선택한 요일에는 수업이 배치되지 않습니다 (필수 반영)
+            </p>
           </FilterCard>
+
+          {/* ── 선호 조건 ── */}
+          <SectionHeader label="선호 조건" />
 
           {/* 7. 시간대 선호 */}
           <FilterCard title="시간대 선호">
@@ -915,7 +918,7 @@ export default function RecommendationPage() {
           </FilterCard>
 
           {/* 10. 전공 과목 수 */}
-          <FilterCard title="전공 최소 과목 수">
+          <FilterCard title="전공 과목 수">
             <div className="flex gap-1.5 flex-wrap">
               {MAJOR_COUNT_OPTIONS.map((opt) => (
                 <button
@@ -932,7 +935,7 @@ export default function RecommendationPage() {
               ))}
             </div>
             <p className="text-[11px] text-gray-400 mt-1.5">
-              내 전공 그룹 기준 전공필수·전공선택·전공기초 과목 수 (하드 조건)
+              내 전공 그룹 기준 전공필수·전공선택·전공기초 과목 수 (정확히 n개, 필수 반영)
             </p>
             {!hasMajorClassificationContext(filters.userMajor) && (
               <p className="text-[11px] text-amber-600 mt-1">
@@ -991,16 +994,23 @@ export default function RecommendationPage() {
                     ))}
                   </div>
                   <div className="mt-2 grid grid-cols-4 gap-1 text-[10px] text-gray-500">
-                    <ScoreBar label="공강" value={selectedRec.scoreBreakdown.freeDay} max={30} />
+                    <ScoreBar label="관심과목" value={selectedRec.scoreBreakdown.freeDay} max={15} />
                     <ScoreBar label="시간대" value={selectedRec.scoreBreakdown.timePreference} max={25} />
                     <ScoreBar label="공백" value={selectedRec.scoreBreakdown.gap} max={20} />
                     <ScoreBar label="점심" value={selectedRec.scoreBreakdown.lunch} max={15} />
                   </div>
                   <div className="mt-2 text-xs text-gray-600 space-y-1">
-                    <div>
-                      선택된 분반: {[...filters.fixedSections, ...selectedRec.sections].map((s) => s.courseName).join(', ')}
+                    <div className="flex flex-wrap gap-1">
+                      {[...filters.fixedSections, ...selectedRec.sections].map((s) => (
+                        <span key={s.sectionId} className="inline-flex items-center gap-1 bg-white border border-gray-200 rounded-full px-2 py-0.5 text-[11px] text-gray-700">
+                          {s.courseName}
+                          {s.wishlistCount > 0 && (
+                            <span className="text-pink-500 font-medium">♥{s.wishlistCount}</span>
+                          )}
+                        </span>
+                      ))}
                       {selectedRec.sections.length === 0 && filters.fixedSections.length > 0 && (
-                        <span className="text-gray-400"> (고정 분반만으로 구성)</span>
+                        <span className="text-gray-400">(고정 분반만으로 구성)</span>
                       )}
                     </div>
                     {(() => {

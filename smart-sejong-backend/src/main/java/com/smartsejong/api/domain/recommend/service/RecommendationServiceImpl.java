@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 public class RecommendationServiceImpl implements RecommendationService {
 
     private final SectionRepository sectionRepository;
+    private final WishlistLoader wishlistLoader;
 
     // ── 상수 ─────────────────────────────────────────────────────────────
 
@@ -28,14 +29,15 @@ public class RecommendationServiceImpl implements RecommendationService {
     private static final int SLOT_UNIT = 15;
     private static final int SLOTS_PER_DAY = 56;        // (22-8)*60/15
     private static final int TOP_K = 3;
-    private static final int MAX_EVAL = 10_000;
+    private static final int DFS_ROUNDS = 5;
+    private static final int ROUND_EVAL = 2_000;
     private static final int POOL_SIZE = TOP_K * 8;
-    private static final double DIVERSITY_PENALTY = 24.0;
+    private static final double POOL_SIMILARITY_LIMIT = 0.40;
 
-    private static final double W_FREE_DAY = 30.0;
     private static final double W_TIME = 25.0;
     private static final double W_GAP = 20.0;
     private static final double W_LUNCH = 15.0;
+    private static final double W_POPULARITY = 15.0;
 
     private static final int[] GAP_MINUTES = {0, 60, 120, Integer.MAX_VALUE};
 
@@ -67,7 +69,7 @@ public class RecommendationServiceImpl implements RecommendationService {
 
     private record CourseGroup(long courseId, List<SecData> sections) {}
 
-    private record Score(double freeDay, double time, double gap, double lunch, int total) {}
+    private record Score(double time, double gap, double lunch, double popularity, int total) {}
 
     private record Candidate(List<SecData> sections, int totalCredits, Score score, List<String> reasons) {
         String courseKey() {
@@ -111,6 +113,8 @@ public class RecommendationServiceImpl implements RecommendationService {
                 .filter(s -> !fixedGroupKeys.contains(s.groupKey()))
                 .filter(s -> !fixedCourseIds.contains(s.courseId()))
                 .filter(s -> !conflicts(initMask, s.mask()))
+                .filter(s -> !occupiesFreeDays(s, req.getPreferredFreeDays()))
+                .filter(s -> s.category().equals("교양선택") || isMajor(s, req.getUserMajor()))
                 .toList();
 
         if (candidates.isEmpty() && fixedCredits < req.getCreditMin()) {
@@ -126,35 +130,30 @@ public class RecommendationServiceImpl implements RecommendationService {
                 .map(e -> new CourseGroup(e.getKey(), e.getValue()))
                 .collect(Collectors.toCollection(ArrayList::new));
 
-        // 7. 전공 조건 처리
+        // 7. 전공 조건 검증
         boolean checkMajor = req.getMajorMinCount() > 0 && hasMajorCtx(req.getUserMajor());
         if (req.getMajorMinCount() > 0 && !hasMajorCtx(req.getUserMajor())) {
             return fail("전공 최소 과목 수 조건은 전공 정보가 있을 때만 사용할 수 있습니다.");
         }
-        if (checkMajor) {
-            groups.sort((a, b) -> {
-                boolean am = a.sections().stream().anyMatch(s -> isMajor(s, req.getUserMajor()));
-                boolean bm = b.sections().stream().anyMatch(s -> isMajor(s, req.getUserMajor()));
-                return Boolean.compare(bm, am);
-            });
-        }
-
-        int n = groups.size();
-        int[] suffixCred = suffixMaxCredits(groups);
-        int[] suffixMajor = checkMajor ? suffixMaxMajor(groups, req.getUserMajor()) : new int[n + 1];
         int fixedMajorCnt = checkMajor
                 ? (int) fixed.stream().filter(s -> isMajor(s, req.getUserMajor())).count() : 0;
 
-        // 8. DFS 탐색
-        int[] evalCnt = {0};
+        // 8. 멀티라운드 DFS (라운드마다 셔플)
+        List<CourseGroup> shufflable = new ArrayList<>(groups);
         List<Candidate> pool = new ArrayList<>();
         Map<String, Integer> poolIdx = new LinkedHashMap<>();
 
-        dfs(0, initMask.clone(), new ArrayList<>(), fixedCredits, fixedMajorCnt,
-                groups, suffixCred, suffixMajor, fixed, req, evalCnt, pool, poolIdx);
+        for (int round = 0; round < DFS_ROUNDS; round++) {
+            Collections.shuffle(shufflable);
+            int[] suffCred = suffixMaxCredits(shufflable);
+            int[] suffMaj = checkMajor ? suffixMaxMajor(shufflable, req.getUserMajor()) : new int[shufflable.size() + 1];
+            int[] evalCnt = {0};
+            dfs(0, initMask.clone(), new ArrayList<>(), fixedCredits, fixedMajorCnt,
+                    shufflable, suffCred, suffMaj, fixed, req, evalCnt, pool, poolIdx);
+        }
 
         if (pool.isEmpty()) {
-            return fail(diagMsg(req, candidates.size(), fixedCredits, suffixCred));
+            return fail(diagMsg(req, candidates.size(), fixedCredits));
         }
 
         // 9. 다양성 상위 K 선택 및 응답 변환
@@ -310,12 +309,13 @@ public class RecommendationServiceImpl implements RecommendationService {
                      List<SecData> fixed, RecommendationRequest req,
                      int[] evalCnt, List<Candidate> pool, Map<String, Integer> poolIdx) {
 
-        if (evalCnt[0] >= MAX_EVAL) return;
+        if (evalCnt[0] >= ROUND_EVAL) return;
         if (credits > req.getCreditMax()) return;
         if (credits + suffCred[idx] < req.getCreditMin()) return;
 
         int majMin = req.getMajorMinCount();
         boolean checkMajor = majMin > 0 && hasMajorCtx(req.getUserMajor());
+        if (checkMajor && majorCnt > majMin) return;
         if (checkMajor && (majorCnt + suffMajor[idx]) < majMin) return;
 
         if (idx == groups.size()) {
@@ -324,7 +324,7 @@ public class RecommendationServiceImpl implements RecommendationService {
                 List<SecData> all = new ArrayList<>(fixed);
                 all.addAll(selected);
                 long actual = all.stream().filter(s -> isMajor(s, req.getUserMajor())).count();
-                if (actual < majMin) return;
+                if (actual != majMin) return;
             }
 
             evalCnt[0]++;
@@ -355,7 +355,7 @@ public class RecommendationServiceImpl implements RecommendationService {
                     groups, suffCred, suffMajor, fixed, req, evalCnt, pool, poolIdx);
 
             selected.remove(selected.size() - 1);
-            if (evalCnt[0] >= MAX_EVAL) return;
+            if (evalCnt[0] >= ROUND_EVAL) return;
         }
 
         // 스킵
@@ -366,23 +366,27 @@ public class RecommendationServiceImpl implements RecommendationService {
     // ── 점수 계산 ─────────────────────────────────────────────────────────
 
     private Score score(List<SecData> all, List<CustomBlockDto> blocks, RecommendationRequest req) {
-        double freeDay = scoreFreeDay(all, req);
         double time = scoreTime(all, req);
         double gap = scoreGap(all, blocks, req);
         double lunch = req.isNeedsLunchBreak() ? scoreLunch(all, blocks) : 0;
+        double popularity = scorePopularity(all, req);
 
-        double earned = freeDay + time + gap + lunch;
+        double earned = time + gap + lunch + popularity;
         double maxW = activeWeightSum(req);
         int total = maxW > 0 ? (int) Math.round(earned / maxW * 100) : 0;
-        return new Score(freeDay, time, gap, lunch, total);
+        return new Score(time, gap, lunch, popularity, total);
     }
 
-    private double scoreFreeDay(List<SecData> all, RecommendationRequest req) {
-        if (req.getPreferredFreeDays().isEmpty()) return 0;
-        Set<String> busy = new HashSet<>();
-        for (SecData s : all) for (TimeInfo t : s.times()) busy.add(t.dayKor());
-        long matched = req.getPreferredFreeDays().stream().filter(d -> !busy.contains(d)).count();
-        return W_FREE_DAY * ((double) matched / req.getPreferredFreeDays().size());
+    private double scorePopularity(List<SecData> all, RecommendationRequest req) {
+        List<SecData> nonMajor = all.stream()
+                .filter(s -> !isMajor(s, req.getUserMajor()))
+                .toList();
+        if (nonMajor.isEmpty()) return W_POPULARITY;
+        double sum = nonMajor.stream()
+                .mapToInt(s -> wishlistLoader.getCount(s.courseCode()))
+                .sum();
+        double maxPossible = (double) wishlistLoader.getMaxCount() * nonMajor.size();
+        return W_POPULARITY * (sum / maxPossible);
     }
 
     private double scoreTime(List<SecData> all, RecommendationRequest req) {
@@ -476,8 +480,7 @@ public class RecommendationServiceImpl implements RecommendationService {
     }
 
     private double activeWeightSum(RecommendationRequest req) {
-        double sum = W_GAP;
-        if (!req.getPreferredFreeDays().isEmpty()) sum += W_FREE_DAY;
+        double sum = W_GAP + W_POPULARITY;
         if (!req.getMorningPreference().equals("NEUTRAL") || !req.getAfternoonPreference().equals("NEUTRAL")
                 || !req.getEveningPreference().equals("NEUTRAL")) sum += W_TIME;
         if (req.isNeedsLunchBreak()) sum += W_LUNCH;
@@ -502,15 +505,11 @@ public class RecommendationServiceImpl implements RecommendationService {
         List<String> r = new ArrayList<>();
 
         if (!req.getPreferredFreeDays().isEmpty()) {
-            Set<String> busy = all.stream().flatMap(sec -> sec.times().stream()).map(TimeInfo::dayKor).collect(Collectors.toSet());
-            long matched = req.getPreferredFreeDays().stream().filter(d -> !busy.contains(d)).count();
-            double ratio = (double) matched / req.getPreferredFreeDays().size();
-            if (ratio >= 1.0) r.add("공강 희망 요일 100% 반영");
-            else if (ratio >= 0.5) r.add("공강 희망 요일 " + Math.round(ratio * 100) + "% 반영");
+            r.add("공강 희망 요일 반영");
         }
 
         String m = req.getMorningPreference(), a = req.getAfternoonPreference(), e = req.getEveningPreference();
-        double timePct = s.time() / W_TIME;
+        double timePct = W_TIME > 0 ? s.time() / W_TIME : 0;
         if ("DISLIKE".equals(m) && timePct >= 0.7) r.add("아침 수업 최소화");
         if ("DISLIKE".equals(e) && timePct >= 0.7) r.add("저녁 수업 최소화");
         if ("PREFER".equals(m) && timePct >= 0.7) r.add("오전 수업 위주 구성");
@@ -518,6 +517,7 @@ public class RecommendationServiceImpl implements RecommendationService {
 
         if (req.isNeedsLunchBreak() && s.lunch() / W_LUNCH >= 0.8) r.add("점심시간 확보");
         if (s.gap() / W_GAP >= 0.9) r.add("강의 사이 공백 최소화");
+        if (s.popularity() / W_POPULARITY >= 0.6) r.add("인기 교양 과목 포함");
 
         if (req.getMajorMinCount() > 0 && hasMajorCtx(req.getUserMajor())) {
             long cnt = all.stream().filter(sec -> isMajor(sec, req.getUserMajor())).count();
@@ -542,6 +542,10 @@ public class RecommendationServiceImpl implements RecommendationService {
             }
             return;
         }
+        // pool 다양성 강제: 기존 pool 항목과 유사도가 너무 높으면 제외
+        for (Candidate existing : pool) {
+            if (jaccard(c, existing) > POOL_SIMILARITY_LIMIT) return;
+        }
         pool.add(c);
         idx.put(key, pool.size() - 1);
         pool.sort(Comparator.comparingInt(x -> -x.score().total()));
@@ -559,24 +563,10 @@ public class RecommendationServiceImpl implements RecommendationService {
     }
 
     private List<Candidate> selectDiverse(List<Candidate> pool) {
-        if (pool.size() <= TOP_K) return new ArrayList<>(pool);
-        List<Candidate> remaining = new ArrayList<>(pool);
-        remaining.sort(Comparator.comparingInt(x -> -x.score().total()));
-        List<Candidate> selected = new ArrayList<>();
-        selected.add(remaining.remove(0));
-
-        while (selected.size() < TOP_K && !remaining.isEmpty()) {
-            int bestIdx = 0;
-            double bestScore = Double.NEGATIVE_INFINITY;
-            for (int i = 0; i < remaining.size(); i++) {
-                Candidate cand = remaining.get(i);
-                double maxSim = selected.stream().mapToDouble(s -> jaccard(cand, s)).max().orElse(0);
-                double adj = cand.score().total() - maxSim * DIVERSITY_PENALTY;
-                if (adj > bestScore) { bestScore = adj; bestIdx = i; }
-            }
-            selected.add(remaining.remove(bestIdx));
-        }
-        return selected;
+        return pool.stream()
+                .sorted(Comparator.comparingInt(x -> -x.score().total()))
+                .limit(TOP_K)
+                .collect(Collectors.toList());
     }
 
     private double jaccard(Candidate a, Candidate b) {
@@ -724,7 +714,7 @@ public class RecommendationServiceImpl implements RecommendationService {
                 .sections(sections)
                 .totalCredits(c.totalCredits())
                 .scoreBreakdown(ScoreBreakdownDto.builder()
-                        .freeDay(s.freeDay()).timePreference(s.time()).gap(s.gap())
+                        .freeDay(s.popularity()).timePreference(s.time()).gap(s.gap())
                         .lunch(s.lunch()).major(0).total(s.total())
                         .build())
                 .reasons(c.reasons())
@@ -744,6 +734,7 @@ public class RecommendationServiceImpl implements RecommendationService {
                 .credits(s.credits()).categoryDescription(s.category())
                 .college(s.college()).department(s.dept())
                 .times(times)
+                .wishlistCount(wishlistLoader.getCount(s.courseCode()))
                 .build();
     }
 
@@ -751,10 +742,16 @@ public class RecommendationServiceImpl implements RecommendationService {
         return RecommendationResponseDto.builder().combinations(List.of()).diagnosisMessage(msg).build();
     }
 
-    private String diagMsg(RecommendationRequest req, int candSize, int fixedCred, int[] suf) {
+    private boolean occupiesFreeDays(SecData s, List<String> freeDays) {
+        if (freeDays.isEmpty()) return false;
+        Set<String> occupied = s.times().stream().map(TimeInfo::dayKor).collect(Collectors.toSet());
+        return freeDays.stream().anyMatch(occupied::contains);
+    }
+
+    private String diagMsg(RecommendationRequest req, int candSize, int fixedCred) {
         if (req.getMajorMinCount() > 0)
-            return "전공 과목 " + req.getMajorMinCount() + "개 이상 조건을 만족하는 조합이 없습니다. 학점 범위를 넓히거나 전공 과목 수를 줄여보세요.";
-        if (fixedCred + (suf.length > 0 ? suf[0] : 0) < req.getCreditMin())
+            return "전공 과목 정확히 " + req.getMajorMinCount() + "개 조건을 만족하는 조합이 없습니다. 학점 범위를 넓히거나 전공 과목 수를 조정해보세요.";
+        if (fixedCred < req.getCreditMin())
             return "희망 학점 범위를 조금 낮춰보거나 고정 분반을 더 추가해주세요.";
         if (candSize < 3)
             return "현재 후보 강의들끼리 시간 충돌이 많아 조합을 만들기 어렵습니다.";

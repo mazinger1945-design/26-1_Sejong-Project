@@ -32,6 +32,7 @@ export interface RSection {
   categoryDescription: string  // "전공필수", "교양선택" 등
   college: string              // 개설 단과대 (예: "인공지능융합대학")
   department: string           // 개설 학과/전공 (예: "AI로봇학과")
+  wishlistCount: number        // allcll.kr 관심과목 담은 수
 }
 
 /** 정규화 후 bitmask 추가된 분반 */
