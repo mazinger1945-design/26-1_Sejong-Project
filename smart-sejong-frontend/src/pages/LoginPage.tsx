@@ -13,6 +13,25 @@ export default function LoginPage() {
   const [studentId, setStudentId] = useState('')
   const [password, setPassword] = useState('')
 
+  const handleDevLogin = async () => {
+    setIsLoggingIn(true)
+    try {
+      const params = new URLSearchParams({ studentId: '99999999', fullName: '마재혁', major: '컴퓨터공학과' })
+      const res = await fetch(`http://localhost:8080/api/auth/dev-login?${params}`, { method: 'POST' })
+      const json = await res.json()
+      const response = json.data
+      if (response.accessToken) localStorage.setItem('token', response.accessToken)
+      if (response.refreshToken) localStorage.setItem('refreshToken', response.refreshToken)
+      if (response.user) setUser(normalizeUserInfo(response.user))
+      toast.success('시연 계정으로 로그인했습니다!')
+      navigate('/recommendation', { replace: true })
+    } catch {
+      toast.error('개발 서버가 실행 중인지 확인해주세요.')
+    } finally {
+      setIsLoggingIn(false)
+    }
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!studentId || !password) {
@@ -103,6 +122,17 @@ export default function LoginPage() {
           <p className="text-xs text-gray-500 mt-6 text-center">
             세종대학교 포털 계정으로 로그인합니다
           </p>
+
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={handleDevLogin}
+              disabled={isLoggingIn}
+              className="w-full py-2 px-4 rounded-lg text-sm font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 transition-colors"
+            >
+              시연 계정으로 로그인 (마재혁)
+            </button>
+          </div>
         </div>
       </div>
     </div>

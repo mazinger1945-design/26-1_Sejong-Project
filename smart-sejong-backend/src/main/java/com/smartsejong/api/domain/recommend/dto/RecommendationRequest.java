@@ -2,10 +2,13 @@ package com.smartsejong.api.domain.recommend.dto;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Getter
+@Setter
 @NoArgsConstructor
 public class RecommendationRequest {
 
@@ -36,4 +39,10 @@ public class RecommendationRequest {
     private int majorMinCount = 0;
 
     private String userMajor = "";
+
+    public void appendCustomBlocks(List<CustomBlockDto> extra) {
+        List<CustomBlockDto> merged = new ArrayList<>(this.customBlocks);
+        merged.addAll(extra);
+        this.customBlocks = merged;
+    }
 }

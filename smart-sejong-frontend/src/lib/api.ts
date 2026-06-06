@@ -456,6 +456,23 @@ class ApiClient {
   async copyRecommendation(request: CopyRecommendationRequest): Promise<void> {
     await this.client.post('/api/recommend/copy', request)
   }
+
+  async saveGroupRecommendInput(groupId: number, request: BackendRecommendationRequest): Promise<void> {
+    await this.client.put(`/api/groups/${groupId}/recommend/input`, request)
+  }
+
+  async getGroupRecommendStatus(groupId: number): Promise<{ submittedMembers: { userId: number; nickname: string }[]; totalMembers: number }> {
+    const { data } = await this.client.get<{ data: any }>(`/api/groups/${groupId}/recommend/status`)
+    return data.data ?? data
+  }
+
+  async groupRecommend(groupId: number): Promise<BackendRecommendationResponse> {
+    const { data } = await this.client.post<{ data?: BackendRecommendationResponse }>(
+      `/api/groups/${groupId}/recommend`
+    )
+    if (data?.data) return data.data
+    throw new Error('그룹 추천 결과를 받지 못했습니다.')
+  }
 }
 
 export const api = new ApiClient()

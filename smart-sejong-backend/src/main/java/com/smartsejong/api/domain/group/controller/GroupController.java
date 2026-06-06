@@ -2,6 +2,9 @@ package com.smartsejong.api.domain.group.controller;
 
 import com.smartsejong.api.domain.group.dto.*;
 import com.smartsejong.api.domain.group.service.GroupService;
+import com.smartsejong.api.domain.group.dto.GroupRecommendStatusResponse;
+import com.smartsejong.api.domain.recommend.dto.RecommendationRequest;
+import com.smartsejong.api.domain.recommend.dto.RecommendationResponseDto;
 import com.smartsejong.api.exception.CustomException;
 import com.smartsejong.api.exception.ErrorCode;
 import com.smartsejong.api.security.CustomUserDetails;
@@ -90,5 +93,34 @@ public class GroupController {
             @PathVariable Long userId) {
         validate(userDetails);
         return ResponseEntity.ok(groupService.getMemberTimetable(userDetails.getUserId(), groupId, userId));
+    }
+
+    @Operation(summary = "그룹 추천 조건 저장")
+    @PutMapping("/{id}/recommend/input")
+    public ResponseEntity<Void> saveRecommendInput(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long id,
+            @RequestBody RecommendationRequest request) {
+        validate(userDetails);
+        groupService.saveRecommendInput(userDetails.getUserId(), id, request);
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "그룹 추천 조건 제출 현황")
+    @GetMapping("/{id}/recommend/status")
+    public ResponseEntity<GroupRecommendStatusResponse> getRecommendStatus(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long id) {
+        validate(userDetails);
+        return ResponseEntity.ok(groupService.getRecommendStatus(userDetails.getUserId(), id));
+    }
+
+    @Operation(summary = "그룹 공동 시간표 추천 생성")
+    @PostMapping("/{id}/recommend")
+    public ResponseEntity<RecommendationResponseDto> groupRecommend(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long id) {
+        validate(userDetails);
+        return ResponseEntity.ok(groupService.groupRecommend(userDetails.getUserId(), id));
     }
 }

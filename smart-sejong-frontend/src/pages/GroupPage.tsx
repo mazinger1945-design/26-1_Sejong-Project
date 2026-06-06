@@ -9,6 +9,7 @@ import { GroupHeader } from '@/components/group/GroupHeader'
 import { ActiveTimetableSelector } from '@/components/group/ActiveTimetableSelector'
 import { GroupAnalysisPanel } from '@/components/group/GroupAnalysisPanel'
 import { CommonFreeTimePanel } from '@/components/group/CommonFreeTimePanel'
+import { GroupRecommendPanel } from '@/components/group/GroupRecommendPanel'
 import { GroupMemberCard } from '@/components/group/GroupMemberCard'
 import { InviteCodeModal } from '@/components/group/InviteCodeModal'
 import { analyzeGroup } from '@/lib/group/analysis'
@@ -246,6 +247,8 @@ export default function GroupPage() {
                     items={analysis.commonFree}
                     canAnalyze={analysis.canAnalyze}
                   />
+
+                  <GroupRecommendPanel groupId={selectedGroupId} memberCount={groupDetail.members.length} />
 
                   <div className="card">
                     <h3 className="text-lg font-semibold mb-3">멤버별 시간표</h3>

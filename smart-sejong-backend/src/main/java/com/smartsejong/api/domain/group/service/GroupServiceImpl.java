@@ -5,8 +5,14 @@ import com.smartsejong.api.domain.group.entity.Group;
 import com.smartsejong.api.domain.group.entity.GroupMember;
 import com.smartsejong.api.domain.group.repository.GroupMemberRepository;
 import com.smartsejong.api.domain.group.repository.GroupRepository;
+import com.smartsejong.api.domain.group.dto.GroupRecommendStatusResponse;
+import com.smartsejong.api.domain.recommend.dto.CustomBlockDto;
+import com.smartsejong.api.domain.recommend.dto.RecommendationRequest;
+import com.smartsejong.api.domain.recommend.dto.RecommendationResponseDto;
+import com.smartsejong.api.domain.recommend.service.RecommendationService;
 import com.smartsejong.api.domain.timetable.dto.TimetableItemResponse;
 import com.smartsejong.api.domain.timetable.entity.Timetable;
+import com.smartsejong.api.domain.timetable.entity.TimetableItem;
 import com.smartsejong.api.domain.timetable.repository.TimetableRepository;
 import com.smartsejong.api.domain.user.entity.User;
 import com.smartsejong.api.domain.user.repository.UserRepository;
@@ -17,6 +23,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -29,11 +37,14 @@ public class GroupServiceImpl implements GroupService {
     private static final int INVITE_CODE_LENGTH = 6;
     private static final int INVITE_CODE_RETRY_LIMIT = 20;
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
 
     private final GroupRepository groupRepository;
     private final GroupMemberRepository groupMemberRepository;
     private final UserRepository userRepository;
     private final TimetableRepository timetableRepository;
+    private final RecommendationService recommendationService;
+    private final GroupRecommendInputStore inputStore;
 
     @Override
     public CreateGroupResponse create(Long userId, CreateGroupRequest request) {
@@ -138,6 +149,115 @@ public class GroupServiceImpl implements GroupService {
         return new MemberTimetableResponse(memberUserId, timetable.getItems().stream()
                 .map(TimetableItemResponse::from)
                 .toList());
+    }
+
+    @Override
+    public void saveRecommendInput(Long userId, Long groupId, RecommendationRequest req) {
+        verifyMembership(userId, groupId);
+        inputStore.save(groupId, userId, req);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public GroupRecommendStatusResponse getRecommendStatus(Long userId, Long groupId) {
+        verifyMembership(userId, groupId);
+        List<GroupMember> members = groupMemberRepository.findByGroupIdWithUserAndActiveTimetable(groupId);
+        var submitted = inputStore.getSubmittedUserIds(groupId);
+        var submittedMembers = members.stream()
+            .filter(m -> submitted.contains(m.getUser().getId()))
+            .map(m -> new GroupRecommendStatusResponse.SubmittedMember(m.getUser().getId(), m.getUser().getFullName()))
+            .toList();
+        return new GroupRecommendStatusResponse(submittedMembers, members.size());
+    }
+
+    @Override
+    public RecommendationResponseDto groupRecommend(Long userId, Long groupId) {
+        verifyMembership(userId, groupId);
+
+        var inputs = inputStore.getInputs(groupId);
+        if (inputs.isEmpty()) throw new IllegalStateException("제출된 조건이 없습니다.");
+
+        RecommendationRequest merged = mergeRequests(inputs.values().stream().toList());
+
+        List<GroupMember> members = groupMemberRepository.findByGroupIdWithUserAndActiveTimetable(groupId);
+        List<CustomBlockDto> groupBlocks = new ArrayList<>();
+        for (GroupMember member : members) {
+            Timetable active = member.getActiveTimetable();
+            if (active == null) continue;
+            timetableRepository.findByIdWithItems(active.getId()).ifPresent(t ->
+                t.getItems().forEach(item -> groupBlocks.addAll(toCustomBlocks(item)))
+            );
+        }
+        merged.appendCustomBlocks(groupBlocks);
+        return recommendationService.generate(merged);
+    }
+
+    private RecommendationRequest mergeRequests(List<RecommendationRequest> reqs) {
+        RecommendationRequest base = reqs.get(0);
+        if (reqs.size() == 1) return base;
+
+        // 학점: 교집합
+        int creditMin = reqs.stream().mapToInt(RecommendationRequest::getCreditMin).max().orElse(12);
+        int creditMax = reqs.stream().mapToInt(RecommendationRequest::getCreditMax).min().orElse(18);
+        if (creditMax < creditMin) creditMax = creditMin;
+
+        // 공강 요일: 합집합
+        List<String> freeDays = reqs.stream()
+            .flatMap(r -> r.getPreferredFreeDays().stream())
+            .distinct().toList();
+
+        // 시간대 선호: 가장 엄격한 기준 (DISLIKE 우선, PREFER 다음)
+        String morning = strictest(reqs.stream().map(RecommendationRequest::getMorningPreference).toList());
+        String afternoon = strictest(reqs.stream().map(RecommendationRequest::getAfternoonPreference).toList());
+        String evening = strictest(reqs.stream().map(RecommendationRequest::getEveningPreference).toList());
+
+        // 공백: 가장 엄격 (min)
+        int gapLevel = reqs.stream().mapToInt(RecommendationRequest::getAllowedGapLevel).min().orElse(2);
+
+        // 점심: OR
+        boolean lunch = reqs.stream().anyMatch(RecommendationRequest::isNeedsLunchBreak);
+
+        RecommendationRequest result = new RecommendationRequest();
+        result.setCreditMin(creditMin);
+        result.setCreditMax(creditMax);
+        result.setPreferredFreeDays(freeDays);
+        result.setMorningPreference(morning);
+        result.setAfternoonPreference(afternoon);
+        result.setEveningPreference(evening);
+        result.setAllowedGapLevel(gapLevel);
+        result.setNeedsLunchBreak(lunch);
+        return result;
+    }
+
+    private String strictest(List<String> prefs) {
+        if (prefs.contains("DISLIKE")) return "DISLIKE";
+        if (prefs.stream().allMatch("PREFER"::equals)) return "PREFER";
+        return "NEUTRAL";
+    }
+
+    private List<CustomBlockDto> toCustomBlocks(TimetableItem item) {
+        try {
+            if (item.isCustom()) {
+                if (item.getCustomDay() == null || item.getCustomStart() == null || item.getCustomEnd() == null) return List.of();
+                return List.of(new CustomBlockDto(
+                    item.getCustomName() != null ? item.getCustomName() : "일정",
+                    item.getCustomDay().getKor(),
+                    item.getCustomStart().format(TIME_FMT),
+                    item.getCustomEnd().format(TIME_FMT)
+                ));
+            } else {
+                var s = item.getSection();
+                if (s == null || s.getDayOfWeek() == null || s.getStartTime() == null || s.getEndTime() == null) return List.of();
+                return List.of(new CustomBlockDto(
+                    "그룹원 수업",
+                    s.getDayOfWeek().getKor(),
+                    s.getStartTime().format(TIME_FMT),
+                    s.getEndTime().format(TIME_FMT)
+                ));
+            }
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 
     private List<TimetableItemResponse> activeTimetableItems(GroupMember member) {
