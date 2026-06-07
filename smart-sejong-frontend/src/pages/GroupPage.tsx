@@ -248,7 +248,12 @@ export default function GroupPage() {
                     canAnalyze={analysis.canAnalyze}
                   />
 
-                  <GroupRecommendPanel groupId={selectedGroupId} memberCount={groupDetail.members.length} />
+                  <GroupRecommendPanel
+                    groupId={selectedGroupId}
+                    memberCount={groupDetail.members.length}
+                    activeTimetableId={meActiveTimetableId}
+                    activeTimetableName={meMember?.active_timetable_name}
+                  />
 
                   <div className="card">
                     <h3 className="text-lg font-semibold mb-3">멤버별 시간표</h3>

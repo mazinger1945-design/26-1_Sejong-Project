@@ -712,12 +712,18 @@ public class RecommendationServiceImpl implements RecommendationService {
         Score s = c.score();
         return CombinationDto.builder()
                 .sections(sections)
+                .addedSections(sections)
                 .totalCredits(c.totalCredits())
                 .scoreBreakdown(ScoreBreakdownDto.builder()
                         .freeDay(s.popularity()).timePreference(s.time()).gap(s.gap())
                         .lunch(s.lunch()).major(0).total(s.total())
+                        .personalScore(s.total()).groupScore(0).totalScore(s.total())
                         .build())
                 .reasons(c.reasons())
+                .personalScore(s.total())
+                .groupScore(0)
+                .totalScore(s.total())
+                .groupReasons(List.of())
                 .build();
     }
 

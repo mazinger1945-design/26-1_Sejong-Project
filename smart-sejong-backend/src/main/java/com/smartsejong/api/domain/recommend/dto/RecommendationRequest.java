@@ -6,6 +6,7 @@ import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Getter
 @Setter
@@ -41,8 +42,10 @@ public class RecommendationRequest {
     private String userMajor = "";
 
     public void appendCustomBlocks(List<CustomBlockDto> extra) {
-        List<CustomBlockDto> merged = new ArrayList<>(this.customBlocks);
-        merged.addAll(extra);
+        List<CustomBlockDto> merged = new ArrayList<>(this.customBlocks != null ? this.customBlocks : List.of());
+        if (extra != null) {
+            merged.addAll(extra.stream().filter(Objects::nonNull).toList());
+        }
         this.customBlocks = merged;
     }
 }

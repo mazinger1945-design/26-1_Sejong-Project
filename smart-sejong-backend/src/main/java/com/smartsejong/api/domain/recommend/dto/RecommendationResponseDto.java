@@ -16,9 +16,15 @@ public class RecommendationResponseDto {
     @Builder
     public static class CombinationDto {
         private List<SectionDto> sections;
+        private List<SectionDto> baseSections;
+        private List<SectionDto> addedSections;
         private int totalCredits;
         private ScoreBreakdownDto scoreBreakdown;
         private List<String> reasons;
+        private Integer personalScore;
+        private Integer groupScore;
+        private Integer totalScore;
+        private List<String> groupReasons;
     }
 
     /** GroupedSectionRaw 포맷과 동일 — 프론트에서 toRSection()으로 바로 변환 가능 */
@@ -56,5 +62,8 @@ public class RecommendationResponseDto {
         private double lunch;
         private double major;
         private int total;
+        private Integer personalScore;
+        private Integer groupScore;
+        private Integer totalScore;
     }
 }

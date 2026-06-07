@@ -223,6 +223,9 @@ export interface BackendScoreBreakdown {
   lunch: number
   major: number
   total: number
+  personalScore?: number
+  groupScore?: number
+  totalScore?: number
 }
 
 export interface BackendSectionDto {
@@ -241,9 +244,15 @@ export interface BackendSectionDto {
 
 export interface BackendCombinationDto {
   sections: BackendSectionDto[]
+  baseSections?: BackendSectionDto[]
+  addedSections?: BackendSectionDto[]
   totalCredits: number
   scoreBreakdown: BackendScoreBreakdown
   reasons: string[]
+  personalScore?: number
+  groupScore?: number
+  totalScore?: number
+  groupReasons?: string[]
 }
 
 export interface BackendRecommendationResponse {

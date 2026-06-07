@@ -467,10 +467,11 @@ class ApiClient {
   }
 
   async groupRecommend(groupId: number): Promise<BackendRecommendationResponse> {
-    const { data } = await this.client.post<{ data?: BackendRecommendationResponse }>(
+    const { data } = await this.client.post<{ data?: BackendRecommendationResponse } | BackendRecommendationResponse>(
       `/api/groups/${groupId}/recommend`
     )
-    if (data?.data) return data.data
+    if ('data' in data && data.data) return data.data
+    if ('combinations' in data) return data
     throw new Error('그룹 추천 결과를 받지 못했습니다.')
   }
 }
