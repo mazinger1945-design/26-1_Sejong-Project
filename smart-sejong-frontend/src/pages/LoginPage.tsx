@@ -83,10 +83,11 @@ export default function LoginPage() {
       </div>
 
       {/* 본문 - 수직 중앙 정렬 */}
-      <div className="min-h-screen flex items-center">
+      <div className="min-h-screen flex items-center justify-center px-10">
+        <div className="w-full max-w-4xl flex items-center gap-16">
 
         {/* 왼쪽: 브랜딩 텍스트 */}
-        <div className="hidden md:flex flex-[3] flex-col pl-20 pr-10">
+        <div className="hidden md:flex flex-1 flex-col">
           <h2 className="text-5xl font-bold text-white leading-tight">
             스마트한<br />시간표 관리
           </h2>
@@ -108,8 +109,8 @@ export default function LoginPage() {
         </div>
 
         {/* 오른쪽: 로그인 폼 */}
-        <div className="flex-[2] flex items-center justify-center p-10">
-          <div className="w-full max-w-sm">
+        <div className="w-full md:w-96 shrink-0">
+          <div className="w-full max-w-sm md:max-w-none">
 
             {/* 모바일 전용 로고 */}
             <div className="md:hidden flex flex-col items-center mb-8">
@@ -170,6 +171,7 @@ export default function LoginPage() {
           </div>
         </div>
 
+        </div>
       </div>
     </div>
   )
