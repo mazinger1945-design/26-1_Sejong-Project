@@ -75,7 +75,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-sky-500 via-indigo-500 to-violet-600 flex">
 
       {/* 왼쪽: 브랜딩 */}
-      <div className="hidden md:flex flex-1 flex-col p-10">
+      <div className="hidden md:flex flex-[3] flex-col py-10 pl-14 pr-6">
         {/* 로고 - 좌측 상단 */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow">
@@ -85,21 +85,21 @@ export default function LoginPage() {
         </div>
 
         {/* 중앙 타이틀 */}
-        <div className="flex-1 flex flex-col justify-center pr-10">
+        <div className="flex-1 flex flex-col justify-center max-w-sm">
           <h2 className="text-5xl font-bold text-white leading-tight">
             스마트한<br />시간표 관리
           </h2>
-          <p className="text-white/70 mt-5 text-lg leading-relaxed">
+          <p className="text-white/70 mt-4 text-base leading-relaxed">
             조건을 입력하면 최적의 시간표를<br />자동으로 찾아드립니다.
           </p>
-          <div className="mt-10 flex flex-col gap-3">
+          <div className="mt-6 flex flex-col gap-2.5">
             {[
               '학점·전공·공강 조건 자동 반영',
               '친구와 함께하는 그룹 시간표',
               '기이수 과목 자동 제외',
             ].map((text) => (
               <div key={text} className="flex items-center gap-2.5 text-white/80 text-sm">
-                <div className="w-1.5 h-1.5 rounded-full bg-white/60" />
+                <Icon name="check_circle" size={15} filled className="text-white/60 shrink-0" />
                 {text}
               </div>
             ))}
@@ -108,7 +108,7 @@ export default function LoginPage() {
       </div>
 
       {/* 오른쪽: 로그인 폼 */}
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-[2] flex items-center justify-center p-8">
         <div className="w-full max-w-sm">
 
           {/* 모바일 전용 로고 */}
