@@ -9,7 +9,7 @@ const navItems = [
   { path: '/learning', label: '학습 현황', icon: 'school' },
   { path: '/recommendation', label: '시간표 추천', icon: 'event_available' },
   { path: '/timetable', label: '내 시간표', icon: 'calendar_month' },
-  { path: '/group', label: '그룹 협동', icon: 'group' },
+  { path: '/group', label: '그룹 시간표', icon: 'group' },
 ]
 
 export default function Layout() {

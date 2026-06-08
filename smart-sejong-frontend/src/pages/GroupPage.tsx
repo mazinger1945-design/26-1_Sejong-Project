@@ -183,7 +183,7 @@ export default function GroupPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">그룹 협동</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">그룹 시간표</h1>
         <p className="text-gray-600">친구들과 함께 시간표를 맞추고 공통 빈 시간을 찾아보세요.</p>
       </div>
 
