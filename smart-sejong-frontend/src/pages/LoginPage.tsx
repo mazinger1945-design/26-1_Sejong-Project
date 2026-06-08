@@ -72,20 +72,21 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-500 via-indigo-500 to-violet-600 flex">
+    <div className="min-h-screen bg-gradient-to-br from-sky-500 via-indigo-500 to-violet-600 relative">
 
-      {/* 왼쪽: 브랜딩 */}
-      <div className="hidden md:flex flex-[3] flex-col py-10 pl-14 pr-6">
-        {/* 로고 - 좌측 상단 */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow">
-            <img src={sejongLogo} alt="세종대 로고" className="w-6 h-6 object-contain brightness-[10]" />
-          </div>
-          <span className="text-lg font-bold text-white tracking-tight">Smart Sejong</span>
+      {/* 로고 - absolute 고정 */}
+      <div className="absolute top-8 left-10 hidden md:flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow">
+          <img src={sejongLogo} alt="세종대 로고" className="w-5 h-5 object-contain brightness-[10]" />
         </div>
+        <span className="text-base font-bold text-white tracking-tight">Smart Sejong</span>
+      </div>
 
-        {/* 중앙 타이틀 */}
-        <div className="flex-1 flex flex-col justify-center max-w-sm">
+      {/* 본문 - 수직 중앙 정렬 */}
+      <div className="min-h-screen flex items-center">
+
+        {/* 왼쪽: 브랜딩 텍스트 */}
+        <div className="hidden md:flex flex-[3] flex-col pl-20 pr-10">
           <h2 className="text-5xl font-bold text-white leading-tight">
             스마트한<br />시간표 관리
           </h2>
@@ -105,74 +106,71 @@ export default function LoginPage() {
             ))}
           </div>
         </div>
-      </div>
 
-      {/* 오른쪽: 로그인 폼 */}
-      <div className="flex-[2] flex items-center justify-center p-8">
-        <div className="w-full max-w-sm">
+        {/* 오른쪽: 로그인 폼 */}
+        <div className="flex-[2] flex items-center justify-center p-10">
+          <div className="w-full max-w-sm">
 
-          {/* 모바일 전용 로고 */}
-          <div className="md:hidden flex flex-col items-center mb-8">
-            <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center mb-3 shadow">
-              <img src={sejongLogo} alt="세종대 로고" className="w-9 h-9 object-contain brightness-[10]" />
+            {/* 모바일 전용 로고 */}
+            <div className="md:hidden flex flex-col items-center mb-8">
+              <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center mb-3 shadow">
+                <img src={sejongLogo} alt="세종대 로고" className="w-9 h-9 object-contain brightness-[10]" />
+              </div>
+              <h1 className="text-2xl font-bold text-white">Smart Sejong</h1>
             </div>
-            <h1 className="text-2xl font-bold text-white">Smart Sejong</h1>
-          </div>
 
-          <div className="bg-white rounded-3xl shadow-2xl p-8">
-            <h3 className="text-xl font-bold text-gray-800 mb-6">로그인</h3>
-
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1.5">학번</label>
-                <input
-                  type="text"
-                  value={studentId}
-                  onChange={(e) => setStudentId(e.target.value)}
-                  className="input"
-                  placeholder="학번을 입력하세요"
-                  required
-                />
+            <div className="bg-white rounded-3xl shadow-2xl p-8">
+              <h3 className="text-xl font-bold text-gray-800 mb-6">로그인</h3>
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1.5">학번</label>
+                  <input
+                    type="text"
+                    value={studentId}
+                    onChange={(e) => setStudentId(e.target.value)}
+                    className="input"
+                    placeholder="학번을 입력하세요"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1.5">비밀번호</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="input"
+                    placeholder="비밀번호를 입력하세요"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isLoggingIn}
+                  className="w-full btn-primary py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isLoggingIn ? '로그인 중...' : '세종대 포털 로그인'}
+                </button>
+              </form>
+              <p className="text-xs text-gray-400 mt-4 text-center">
+                세종대학교 포털 계정으로 로그인합니다
+              </p>
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={handleDevLogin}
+                  disabled={isLoggingIn}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-full text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 transition-colors border border-indigo-100"
+                >
+                  <Icon name="science" size={16} className="text-indigo-500" />
+                  시연 계정으로 로그인 (마재혁)
+                </button>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1.5">비밀번호</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="input"
-                  placeholder="비밀번호를 입력하세요"
-                  required
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={isLoggingIn}
-                className="w-full btn-primary py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoggingIn ? '로그인 중...' : '세종대 포털 로그인'}
-              </button>
-            </form>
-
-            <p className="text-xs text-gray-400 mt-4 text-center">
-              세종대학교 포털 계정으로 로그인합니다
-            </p>
-
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <button
-                type="button"
-                onClick={handleDevLogin}
-                disabled={isLoggingIn}
-                className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-full text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 transition-colors border border-indigo-100"
-              >
-                <Icon name="science" size={16} className="text-indigo-500" />
-                시연 계정으로 로그인 (마재혁)
-              </button>
             </div>
           </div>
         </div>
-      </div>
 
+      </div>
     </div>
   )
 }
