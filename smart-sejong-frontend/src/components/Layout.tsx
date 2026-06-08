@@ -1,21 +1,14 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { api } from '@/lib/api'
-import { 
-  GraduationCap, 
-  CalendarCheck, 
-  Calendar, 
-  Users, 
-  User,
-  LogOut 
-} from 'lucide-react'
+import { Icon } from '@/components/ui/Icon'
 import toast from 'react-hot-toast'
 
 const navItems = [
-  { path: '/learning', label: '학습 현황', icon: GraduationCap },
-  { path: '/recommendation', label: '시간표 추천', icon: CalendarCheck },
-  { path: '/timetable', label: '내 시간표', icon: Calendar },
-  { path: '/group', label: '그룹 협동', icon: Users },
+  { path: '/learning', label: '학습 현황', icon: 'school' },
+  { path: '/recommendation', label: '시간표 추천', icon: 'event_available' },
+  { path: '/timetable', label: '내 시간표', icon: 'calendar_month' },
+  { path: '/group', label: '그룹 협동', icon: 'group' },
 ]
 
 export default function Layout() {
@@ -34,48 +27,48 @@ export default function Layout() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+      <header className="bg-gradient-to-r from-sky-600 to-indigo-600 sticky top-0 z-50 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <h1 className="text-xl font-bold text-primary-600">Smart Sejong</h1>
-              <nav className="hidden md:flex space-x-1">
-                {navItems.map((item) => {
-                  const Icon = item.icon
-                  return (
-                    <NavLink
-                      key={item.path}
-                      to={item.path}
-                      className={({ isActive }) =>
-                        `flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                          isActive
-                            ? 'bg-primary-50 text-primary-600 font-medium'
-                            : 'text-gray-600 hover:bg-gray-50'
-                        }`
-                      }
-                    >
-                      <Icon className="w-5 h-5" />
-                      <span>{item.label}</span>
-                    </NavLink>
-                  )
-                })}
+          <div className="flex items-center justify-between h-14">
+            <div className="flex items-center space-x-5">
+              <div className="flex items-center gap-2">
+                <Icon name="school" size={22} filled className="text-white/90" />
+                <h1 className="text-lg font-bold text-white tracking-tight">Smart Sejong</h1>
+              </div>
+              <nav className="hidden md:flex space-x-0.5">
+                {navItems.map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    className={({ isActive }) =>
+                      `flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all text-sm font-medium ${
+                        isActive
+                          ? 'bg-white/20 text-white shadow-sm'
+                          : 'text-white/70 hover:bg-white/10 hover:text-white'
+                      }`
+                    }
+                  >
+                    <Icon name={item.icon} size={18} />
+                    <span>{item.label}</span>
+                  </NavLink>
+                ))}
               </nav>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center gap-1">
               <NavLink
                 to="/profile"
-                className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white/70 hover:bg-white/10 hover:text-white transition-all text-sm"
               >
-                <User className="w-5 h-5" />
+                <Icon name="person" size={18} />
                 <span className="hidden sm:inline">{user?.nickname || user?.student_id || '사용자'}</span>
               </NavLink>
               <button
                 onClick={handleLogout}
-                className="flex items-center space-x-2 text-gray-600 hover:text-red-600 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white/70 hover:bg-white/10 hover:text-white transition-all text-sm"
               >
-                <LogOut className="w-5 h-5" />
+                <Icon name="logout" size={18} />
                 <span className="hidden sm:inline">로그아웃</span>
               </button>
             </div>
@@ -84,30 +77,27 @@ export default function Layout() {
       </header>
 
       {/* Mobile Navigation */}
-      <nav className="md:hidden bg-white border-t border-gray-200 fixed bottom-0 left-0 right-0 z-50">
+      <nav className="md:hidden bg-white border-t border-gray-100 fixed bottom-0 left-0 right-0 z-50 shadow-[0_-1px_8px_rgba(0,0,0,0.07)]">
         <div className="flex justify-around">
-          {navItems.map((item) => {
-            const Icon = item.icon
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                className={({ isActive }) =>
-                  `flex flex-col items-center justify-center py-2 px-4 flex-1 ${
-                    isActive ? 'text-primary-600' : 'text-gray-600'
-                  }`
-                }
-              >
-                <Icon className="w-6 h-6" />
-                <span className="text-xs mt-1">{item.label}</span>
-              </NavLink>
-            )
-          })}
+          {navItems.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={({ isActive }) =>
+                `flex flex-col items-center justify-center py-2 px-3 flex-1 gap-0.5 transition-colors ${
+                  isActive ? 'text-sky-600' : 'text-gray-400'
+                }`
+              }
+            >
+              <Icon name={item.icon} size={22} />
+              <span className="text-[10px] font-medium">{item.label}</span>
+            </NavLink>
+          ))}
         </div>
       </nav>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-20 md:pb-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
         <Outlet />
       </main>
     </div>

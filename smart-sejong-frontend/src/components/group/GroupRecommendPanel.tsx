@@ -1,17 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  AlertCircle,
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  Circle,
-  Loader2,
-  Plus,
-  Sparkles,
-  X,
-} from 'lucide-react'
 import toast from 'react-hot-toast'
+import { Icon } from '@/components/ui/Icon'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import type { BackendCombinationDto, BackendSectionDto } from '@/types'
@@ -166,15 +156,15 @@ export function GroupRecommendPanel({
     <div className="card">
       <button className="w-full flex items-center justify-between" onClick={() => setOpen((v) => !v)}>
         <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-primary-600" />
+          <Icon name="auto_awesome" size={20} filled className="text-sky-600" />
           <h3 className="text-lg font-semibold">내 공유 시간표 보완 추천</h3>
           {submittedCount > 0 && (
-            <span className="text-xs bg-primary-100 text-primary-700 rounded-full px-2 py-0.5">
+            <span className="text-xs bg-sky-100 text-sky-700 rounded-full px-2 py-0.5">
               {submittedCount}/{memberCount} 저장
             </span>
           )}
         </div>
-        {open ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+        <Icon name={open ? 'expand_less' : 'expand_more'} size={18} className="text-gray-400" />
       </button>
 
       {open && (
@@ -185,7 +175,7 @@ export function GroupRecommendPanel({
 
           {!hasActiveTimetable ? (
             <div className="rounded-lg bg-amber-50 border border-amber-100 p-3 flex gap-2 text-sm text-amber-800">
-              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+              <Icon name="warning" size={16} className="mt-0.5 shrink-0 text-amber-500" />
               <span>먼저 이 그룹에 공유할 내 시간표를 선택해야 보완 추천을 받을 수 있습니다.</span>
             </div>
           ) : (
@@ -201,12 +191,12 @@ export function GroupRecommendPanel({
               <p className="text-xs font-medium text-gray-600 mb-1">조건 저장 현황</p>
               {status.submittedMembers?.map((m) => (
                 <div key={m.userId} className="flex items-center gap-1.5 text-sm text-gray-700">
-                  <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /> {m.nickname}
+                  <Icon name="check_circle" size={16} filled className="text-green-500 shrink-0" /> {m.nickname}
                 </div>
               ))}
               {submittedCount < memberCount && (
                 <div className="flex items-center gap-1.5 text-sm text-gray-400">
-                  <Circle className="w-4 h-4 shrink-0" /> 미저장 ({memberCount - submittedCount}명)
+                  <Icon name="radio_button_unchecked" size={16} className="text-gray-400 shrink-0" /> 미저장 ({memberCount - submittedCount}명)
                 </div>
               )}
               <p className="text-[11px] text-gray-400 pt-1">
@@ -255,7 +245,7 @@ export function GroupRecommendPanel({
                     onClick={() => toggleDay(day)}
                     className={`w-9 h-9 rounded-full text-sm font-medium transition-colors ${
                       freeDays.includes(day)
-                        ? 'bg-primary-600 text-white'
+                        ? 'bg-sky-600 text-white'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
@@ -282,7 +272,7 @@ export function GroupRecommendPanel({
                         onClick={() => setValue(pref)}
                         className={`w-full py-0.5 rounded mb-0.5 text-[10px] border transition-colors ${
                           value === pref
-                            ? 'bg-primary-600 text-white border-primary-600'
+                            ? 'bg-sky-600 text-white border-sky-600'
                             : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
                         }`}
                       >
@@ -304,7 +294,7 @@ export function GroupRecommendPanel({
                     onClick={() => setGapLevel(level)}
                     className={`px-3 py-1 rounded-full text-xs border transition-colors ${
                       gapLevel === level
-                        ? 'bg-primary-600 text-white border-primary-600'
+                        ? 'bg-sky-600 text-white border-sky-600'
                         : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                     }`}
                   >
@@ -325,7 +315,7 @@ export function GroupRecommendPanel({
                     onClick={() => setMajorMinCount(option.value)}
                     className={`px-3 py-1 rounded-full text-xs border transition-colors disabled:opacity-40 ${
                       majorMinCount === option.value
-                        ? 'bg-primary-600 text-white border-primary-600'
+                        ? 'bg-sky-600 text-white border-sky-600'
                         : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                     }`}
                   >
@@ -352,16 +342,16 @@ export function GroupRecommendPanel({
                 <button
                   type="button"
                   onClick={() => setShowBlockForm((v) => !v)}
-                  className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700"
+                  className="flex items-center gap-1 text-xs text-sky-600 hover:text-primary-700"
                 >
-                  <Plus className="w-3 h-3" /> 추가
+                  <Icon name="add" size={14} /> 추가
                 </button>
               </div>
               {customBlocks.map((block) => (
                 <div key={block.id} className="flex items-center justify-between bg-gray-50 rounded px-2 py-1 mb-1 text-xs">
                   <span className="text-gray-700">{block.day} {block.startTime}~{block.endTime} {block.title}</span>
                   <button type="button" onClick={() => setCustomBlocks((prev) => prev.filter((item) => item.id !== block.id))}>
-                    <X className="w-3 h-3 text-gray-400 hover:text-red-400" />
+                    <Icon name="close" size={13} className="text-gray-400 hover:text-red-400" />
                   </button>
                 </div>
               ))}
@@ -397,7 +387,7 @@ export function GroupRecommendPanel({
                       onChange={(e) => setNewBlock((prev) => ({ ...prev, endTime: e.target.value }))}
                       className="border rounded px-2 py-1 text-xs"
                     />
-                    <button type="button" onClick={addBlock} className="ml-auto text-xs bg-primary-600 text-white rounded px-2 py-1">
+                    <button type="button" onClick={addBlock} className="ml-auto text-xs bg-sky-600 text-white rounded px-2 py-1">
                       확인
                     </button>
                   </div>
@@ -413,8 +403,8 @@ export function GroupRecommendPanel({
                 iSubmitted ? 'bg-green-50 text-green-700 border border-green-200' : 'btn-primary'
               } disabled:opacity-50`}
             >
-              {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" />
-                : iSubmitted ? <CheckCircle2 className="w-4 h-4" /> : null}
+              {saveMutation.isPending ? <Icon name="progress_activity" size={16} className="animate-spin-icon" />
+                : iSubmitted ? <Icon name="check_circle" size={16} filled className="text-green-600" /> : null}
               {iSubmitted ? '조건 저장됨 (재저장)' : '내 조건 저장'}
             </button>
           </fieldset>
@@ -426,8 +416,8 @@ export function GroupRecommendPanel({
             className="w-full btn-primary disabled:opacity-40 flex items-center justify-center gap-2"
           >
             {generateMutation.isPending
-              ? <><Loader2 className="w-4 h-4 animate-spin" /> 추천 중...</>
-              : <><Sparkles className="w-4 h-4" /> 내 시간표 보완 추천받기 ({submittedCount}명 조건 참고)</>}
+              ? <><Icon name="progress_activity" size={16} className="animate-spin-icon" /> 추천 중...</>
+              : <><Icon name="auto_awesome" size={16} filled /> 내 시간표 보완 추천받기 ({submittedCount}명 조건 참고)</>}
           </button>
 
           {diagnosisMessage && result.length === 0 && (
@@ -516,7 +506,7 @@ function ResultCard({
 
 function ScoreBadge({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) {
   return (
-    <span className={`rounded-full px-2 py-0.5 ${strong ? 'bg-primary-50 text-primary-700 font-bold' : 'bg-gray-50 text-gray-500'}`}>
+    <span className={`rounded-full px-2 py-0.5 ${strong ? 'bg-sky-50 text-sky-700 font-bold' : 'bg-gray-50 text-gray-500'}`}>
       {label} {value}점
     </span>
   )
@@ -544,7 +534,7 @@ function SectionGroup({
             <span
               key={`${title}-${section.sectionId}`}
               className={`text-[11px] border rounded-full px-2 py-0.5 ${
-                muted ? 'bg-white border-gray-200 text-gray-500' : 'bg-white border-primary-100 text-gray-700'
+                muted ? 'bg-white border-gray-200 text-gray-500' : 'bg-white border-sky-100 text-gray-700'
               }`}
             >
               {section.courseName}{section.sectionNumber ? ` (${section.sectionNumber})` : ''}

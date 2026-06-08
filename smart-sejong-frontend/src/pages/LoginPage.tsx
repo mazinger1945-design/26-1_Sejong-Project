@@ -4,7 +4,7 @@ import { api } from '@/lib/api'
 import { normalizeUserInfo } from '@/lib/user'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
-import { GraduationCap } from 'lucide-react'
+import { Icon } from '@/components/ui/Icon'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -71,21 +71,22 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-sky-500 via-indigo-500 to-violet-600 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        <div className="card text-center">
-          <div className="flex justify-center mb-6">
-            <div className="bg-primary-600 p-4 rounded-full">
-              <GraduationCap className="w-12 h-12 text-white" />
-            </div>
+        {/* Logo area */}
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm mb-4 shadow-lg">
+            <Icon name="school" size={36} filled className="text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Smart Sejong</h1>
-          <p className="text-gray-600 mb-8">스마트 시간표 관리 시스템</p>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Smart Sejong</h1>
+          <p className="text-white/70 mt-1 text-sm">스마트 시간표 관리 시스템</p>
+        </div>
 
+        <div className="bg-white rounded-2xl shadow-xl p-8">
           {/* 로그인 폼 */}
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">
                 학번
               </label>
               <input
@@ -98,7 +99,7 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">
                 비밀번호
               </label>
               <input
@@ -113,13 +114,13 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoggingIn}
-              className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full btn-primary py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoggingIn ? '로그인 중...' : '로그인'}
+              {isLoggingIn ? '로그인 중...' : '세종대 포털 로그인'}
             </button>
           </form>
 
-          <p className="text-xs text-gray-500 mt-6 text-center">
+          <p className="text-xs text-gray-400 mt-4 text-center">
             세종대학교 포털 계정으로 로그인합니다
           </p>
 
@@ -128,8 +129,9 @@ export default function LoginPage() {
               type="button"
               onClick={handleDevLogin}
               disabled={isLoggingIn}
-              className="w-full py-2 px-4 rounded-lg text-sm font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 transition-colors border border-indigo-100"
             >
+              <Icon name="science" size={16} className="text-indigo-500" />
               시연 계정으로 로그인 (마재혁)
             </button>
           </div>

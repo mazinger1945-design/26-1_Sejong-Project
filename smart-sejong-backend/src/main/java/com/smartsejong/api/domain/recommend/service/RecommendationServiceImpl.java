@@ -115,6 +115,7 @@ public class RecommendationServiceImpl implements RecommendationService {
                 .filter(s -> !conflicts(initMask, s.mask()))
                 .filter(s -> !occupiesFreeDays(s, req.getPreferredFreeDays()))
                 .filter(s -> s.category().equals("교양선택") || isMajor(s, req.getUserMajor()))
+                .filter(s -> s.credits() > 0)
                 .toList();
 
         if (candidates.isEmpty() && fixedCredits < req.getCreditMin()) {
