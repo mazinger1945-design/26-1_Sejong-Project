@@ -3,6 +3,7 @@ import { useAuthStore } from '@/store/authStore'
 import { api } from '@/lib/api'
 import { Icon } from '@/components/ui/Icon'
 import toast from 'react-hot-toast'
+import sejongLogo from '@/components/image.png'
 
 const navItems = [
   { path: '/learning', label: '학습 현황', icon: 'school' },
@@ -34,7 +35,7 @@ export default function Layout() {
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center space-x-5">
               <div className="flex items-center gap-2">
-                <Icon name="school" size={22} filled className="text-white/90" />
+                <img src={sejongLogo} alt="세종대 로고" className="w-7 h-7 object-contain brightness-[10]" />
                 <h1 className="text-lg font-bold text-white tracking-tight">Smart Sejong</h1>
               </div>
               <nav className="hidden md:flex space-x-0.5">
