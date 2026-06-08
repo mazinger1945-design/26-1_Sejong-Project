@@ -76,10 +76,10 @@ export default function LoginPage() {
 
       {/* 로고 - absolute 고정 */}
       <div className="absolute top-8 left-10 hidden md:flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow">
-          <img src={sejongLogo} alt="세종대 로고" className="w-5 h-5 object-contain brightness-[10]" />
+        <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow">
+          <img src={sejongLogo} alt="세종대 로고" className="w-9 h-9 object-contain brightness-[10]" />
         </div>
-        <span className="text-base font-bold text-white tracking-tight">Smart Sejong</span>
+        <span className="text-xl font-bold text-white tracking-tight">Smart Sejong</span>
       </div>
 
       {/* 본문 - 수직 중앙 정렬 */}
