@@ -74,11 +74,9 @@ class ApiClient {
         
         if (error.response?.status === 401) {
           localStorage.removeItem('token')
-          // 개발 모드에서는 리다이렉트 안 함
-          if (!import.meta.env.DEV) {
-            window.location.href = '/login'
-            toast.error('인증이 만료되었습니다. 다시 로그인해주세요.')
-          }
+          localStorage.removeItem('user')
+          toast.error('인증이 만료되었습니다. 다시 로그인해주세요.')
+          window.location.href = '/login'
         } else if (error.response?.status >= 500) {
           // 개발 모드에서는 토스트 안 띄움 (너무 많은 알림 방지)
           if (!import.meta.env.DEV) {
