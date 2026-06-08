@@ -174,12 +174,12 @@ export function GroupRecommendPanel({
           </p>
 
           {!hasActiveTimetable ? (
-            <div className="rounded-lg bg-amber-50 border border-amber-100 p-3 flex gap-2 text-sm text-amber-800">
+            <div className="rounded-2xl bg-amber-50 border border-amber-100 p-3 flex gap-2 text-sm text-amber-800">
               <Icon name="warning" size={16} className="mt-0.5 shrink-0 text-amber-500" />
               <span>먼저 이 그룹에 공유할 내 시간표를 선택해야 보완 추천을 받을 수 있습니다.</span>
             </div>
           ) : (
-            <div className="rounded-lg bg-gray-50 border border-gray-100 p-3 text-sm text-gray-700">
+            <div className="rounded-2xl bg-gray-50 border border-gray-100 p-3 text-sm text-gray-700">
               <span className="text-gray-500">기준 시간표</span>
               <strong className="ml-2">{activeTimetableName ?? '선택한 공유 시간표'}</strong>
               <span className="ml-3 text-gray-500">목표 {targetCreditText}</span>
@@ -187,7 +187,7 @@ export function GroupRecommendPanel({
           )}
 
           {status && (
-            <div className="bg-gray-50 rounded-lg p-3 space-y-1.5">
+            <div className="bg-gray-50 rounded-2xl p-3 space-y-1.5">
               <p className="text-xs font-medium text-gray-600 mb-1">조건 저장 현황</p>
               {status.submittedMembers?.map((m) => (
                 <div key={m.userId} className="flex items-center gap-1.5 text-sm text-gray-700">
@@ -220,7 +220,7 @@ export function GroupRecommendPanel({
                   max={24}
                   value={creditMin}
                   onChange={(e) => setCreditMin(Number(e.target.value))}
-                  className="w-16 border rounded px-2 py-1 text-sm text-center"
+                  className="w-16 border rounded-xl px-2 py-1 text-sm text-center"
                 />
                 <span className="text-gray-400">~</span>
                 <input
@@ -229,7 +229,7 @@ export function GroupRecommendPanel({
                   max={24}
                   value={creditMax}
                   onChange={(e) => setCreditMax(Number(e.target.value))}
-                  className="w-16 border rounded px-2 py-1 text-sm text-center"
+                  className="w-16 border rounded-xl px-2 py-1 text-sm text-center"
                 />
                 <span className="text-sm text-gray-500">학점</span>
               </div>
@@ -243,7 +243,7 @@ export function GroupRecommendPanel({
                     key={day}
                     type="button"
                     onClick={() => toggleDay(day)}
-                    className={`w-9 h-9 rounded-full text-sm font-medium transition-colors ${
+                    className={`w-9 h-9 rounded-full font-medium text-sm font-medium transition-colors ${
                       freeDays.includes(day)
                         ? 'bg-sky-600 text-white'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -363,12 +363,12 @@ export function GroupRecommendPanel({
                       placeholder="일정 이름"
                       value={newBlock.title}
                       onChange={(e) => setNewBlock((prev) => ({ ...prev, title: e.target.value }))}
-                      className="border rounded px-2 py-1 text-xs flex-1 min-w-0"
+                      className="border rounded-xl px-2 py-1 text-xs flex-1 min-w-0"
                     />
                     <select
                       value={newBlock.day}
                       onChange={(e) => setNewBlock((prev) => ({ ...prev, day: e.target.value as Day }))}
-                      className="border rounded px-2 py-1 text-xs"
+                      className="border rounded-xl px-2 py-1 text-xs"
                     >
                       {DAYS.map((day) => <option key={day}>{day}</option>)}
                     </select>
@@ -378,16 +378,16 @@ export function GroupRecommendPanel({
                       type="time"
                       value={newBlock.startTime}
                       onChange={(e) => setNewBlock((prev) => ({ ...prev, startTime: e.target.value }))}
-                      className="border rounded px-2 py-1 text-xs"
+                      className="border rounded-xl px-2 py-1 text-xs"
                     />
                     <span className="text-gray-400 text-xs">~</span>
                     <input
                       type="time"
                       value={newBlock.endTime}
                       onChange={(e) => setNewBlock((prev) => ({ ...prev, endTime: e.target.value }))}
-                      className="border rounded px-2 py-1 text-xs"
+                      className="border rounded-xl px-2 py-1 text-xs"
                     />
-                    <button type="button" onClick={addBlock} className="ml-auto text-xs bg-sky-600 text-white rounded px-2 py-1">
+                    <button type="button" onClick={addBlock} className="ml-auto text-xs bg-sky-600 text-white rounded-full px-3 py-1">
                       확인
                     </button>
                   </div>
@@ -399,7 +399,7 @@ export function GroupRecommendPanel({
               type="button"
               onClick={() => saveMutation.mutate()}
               disabled={saveMutation.isPending || !hasActiveTimetable}
-              className={`w-full py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+              className={`w-full py-2 rounded-full text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
                 iSubmitted ? 'bg-green-50 text-green-700 border border-green-200' : 'btn-primary'
               } disabled:opacity-50`}
             >
@@ -466,7 +466,7 @@ function ResultCard({
   const reasons = [...(combo.groupReasons ?? []), ...(combo.reasons ?? [])]
 
   return (
-    <div className="border border-gray-200 rounded-lg p-3 space-y-3">
+    <div className="border border-gray-200 rounded-2xl p-3 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div>
           <span className="text-sm font-semibold text-gray-700">#{index + 1}</span>

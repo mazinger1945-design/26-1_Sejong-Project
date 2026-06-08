@@ -583,7 +583,7 @@ export default function RecommendationPage() {
           <button
             onClick={() => setShowSaveModal(true)}
             disabled={!canSave}
-            className="flex items-center gap-2 px-3 py-2 border border-sky-500 text-sky-700 rounded-lg hover:bg-sky-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+            className="flex items-center gap-2 px-4 py-1.5 border border-sky-500 text-sky-700 rounded-full hover:bg-sky-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
             title={canSave ? '현재 추천을 내 시간표에 저장합니다.' : '저장할 추천이나 고정 항목이 없습니다.'}
           >
             <Icon name="save" size={16} />
@@ -605,7 +605,7 @@ export default function RecommendationPage() {
 
       {/* 에러 배너 */}
       {hasErrors && (
-        <div className="mx-4 mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+        <div className="mx-4 mt-3 p-3 bg-red-50 border border-red-200 rounded-2xl">
           <div className="flex items-start gap-2">
             <Icon name="warning" size={16} className="text-red-500 mt-0.5 shrink-0" />
             <ul className="text-sm text-red-700 space-y-0.5">
@@ -636,7 +636,7 @@ export default function RecommendationPage() {
               />
               {sectionSearching && <Icon name="progress_activity" size={16} className="absolute right-3 top-2.5 text-gray-400 animate-spin-icon" />}
               {showSectionDrop && sectionResults.length > 0 && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-2xl shadow-lg max-h-56 overflow-y-auto">
                   {sectionResults.map((r) => (
                     <button
                       key={`${r.sectionId}`}
@@ -701,7 +701,7 @@ export default function RecommendationPage() {
               </div>
               <button
                 onClick={handleAddCustomBlock}
-                className="w-full flex items-center justify-center gap-1.5 py-2 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                className="w-full flex items-center justify-center gap-1.5 py-2 text-sm bg-orange-500 text-white rounded-full hover:bg-orange-600 transition-colors"
               >
                 <Icon name="add" size={16} /> 일정 추가
               </button>
@@ -735,7 +735,7 @@ export default function RecommendationPage() {
               />
               {courseSearching && <Icon name="progress_activity" size={16} className="absolute right-3 top-2.5 text-gray-400 animate-spin-icon" />}
               {showCourseDrop && courseResults.length > 0 && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-2xl shadow-lg max-h-48 overflow-y-auto">
                   {courseResults.map((r) => (
                     <button
                       key={r.courseId}
@@ -816,7 +816,7 @@ export default function RecommendationPage() {
                 <button
                   key={d}
                   onClick={() => toggleFreeDay(d)}
-                  className={`flex-1 py-1.5 text-sm rounded-lg border font-medium transition-colors ${
+                  className={`flex-1 py-1.5 text-sm rounded-full border font-medium transition-colors ${
                     filters.preferredFreeDays.includes(d)
                       ? 'bg-sky-100 border-sky-400 text-sky-700'
                       : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
@@ -872,7 +872,7 @@ export default function RecommendationPage() {
                       <button
                         key={lv}
                         onClick={() => setTimePref(band, lv)}
-                        className={`flex-1 py-1 text-xs rounded border transition-colors ${
+                        className={`flex-1 py-1 text-xs rounded-full border transition-colors ${
                           filters.timePreference[band] === lv
                             ? lv === 'PREFER'
                               ? 'bg-green-100 border-green-400 text-green-700'
@@ -925,7 +925,7 @@ export default function RecommendationPage() {
 
           {/* 이수과목 자동 제외 안내 */}
           {completedCourseInfo.length > 0 && (
-            <div className="flex items-center gap-2 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800">
+            <div className="flex items-center gap-2 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-800">
               <Icon name="auto_stories" size={14} className="shrink-0 text-emerald-600" />
               <span>이수과목 <strong>{completedCourseInfo.length}개</strong> 자동 제외 (동일과목 포함)</span>
             </div>
@@ -943,7 +943,7 @@ export default function RecommendationPage() {
                   <button
                     key={i}
                     onClick={() => setSelectedIdx(i)}
-                    className={`flex-1 rounded-lg border p-3 text-left transition-all ${
+                    className={`flex-1 rounded-2xl border p-3 text-left transition-all ${
                       selectedIdx === i
                         ? 'border-sky-500 bg-sky-50 shadow-sm'
                         : 'border-gray-200 bg-white hover:bg-gray-50'
@@ -965,7 +965,7 @@ export default function RecommendationPage() {
 
               {/* 선택된 추천 상세 */}
               {selectedRec && (
-                <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                <div className="mt-3 p-3 bg-gray-50 rounded-2xl">
                   <div className="text-xs font-medium text-gray-600 mb-1.5">추천 이유</div>
                   <div className="flex flex-wrap gap-1">
                     {selectedRec.reasons.map((r, i) => (
@@ -1023,7 +1023,7 @@ export default function RecommendationPage() {
 
           {/* 진단 메시지 */}
           {diagnosisMessage && !hasResults && (
-            <div className="mx-4 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+            <div className="mx-4 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-2">
               <Icon name="warning" size={16} className="text-amber-500 mt-0.5 shrink-0" />
               <p className="text-sm text-amber-800">{diagnosisMessage}</p>
             </div>
@@ -1068,7 +1068,7 @@ function SectionHeader({ label }: { label: string }) {
 
 function FilterCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-3 shadow-sm hover:shadow transition-shadow">
+    <div className="bg-white rounded-2xl border border-gray-100 p-3 shadow-sm hover:shadow transition-shadow">
       <div className="text-xs font-bold text-gray-500 mb-2.5 tracking-wide">{title}</div>
       {children}
     </div>
