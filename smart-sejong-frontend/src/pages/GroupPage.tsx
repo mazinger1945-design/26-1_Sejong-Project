@@ -245,6 +245,7 @@ export default function GroupPage() {
 
                   <CommonFreeTimePanel
                     items={analysis.commonFree}
+                    availabilitySlots={analysis.availabilitySlots}
                     canAnalyze={analysis.canAnalyze}
                   />
 
@@ -253,6 +254,7 @@ export default function GroupPage() {
                     memberCount={groupDetail.members.length}
                     activeTimetableId={meActiveTimetableId}
                     activeTimetableName={meMember?.active_timetable_name}
+                    activeTimetableItems={meMember?.timetable ?? []}
                   />
 
                   <div className="card">

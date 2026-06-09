@@ -225,6 +225,7 @@ export interface BackendScoreBreakdown {
   total: number
   personalScore?: number
   groupScore?: number
+  wishlistScore?: number
   totalScore?: number
 }
 
@@ -240,6 +241,7 @@ export interface BackendSectionDto {
   college: string | null
   department: string | null
   times: { dayOfWeekKor: string; startTime: string; endTime: string }[]
+  wishlistCount?: number
 }
 
 export interface BackendCombinationDto {
@@ -251,6 +253,9 @@ export interface BackendCombinationDto {
   reasons: string[]
   personalScore?: number
   groupScore?: number
+  wishlistScore?: number
+  wishlistAverageCount?: number
+  popularCourseCount?: number
   totalScore?: number
   groupReasons?: string[]
 }

@@ -23,6 +23,9 @@ public class RecommendationResponseDto {
         private List<String> reasons;
         private Integer personalScore;
         private Integer groupScore;
+        private Integer wishlistScore;
+        private Integer wishlistAverageCount;
+        private Integer popularCourseCount;
         private Integer totalScore;
         private List<String> groupReasons;
     }
@@ -64,6 +67,7 @@ public class RecommendationResponseDto {
         private int total;
         private Integer personalScore;
         private Integer groupScore;
+        private Integer wishlistScore;
         private Integer totalScore;
     }
 }

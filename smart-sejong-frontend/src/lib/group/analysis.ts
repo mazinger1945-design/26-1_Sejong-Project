@@ -1,12 +1,15 @@
 import type { GroupMember, TimetableItem } from '@/types'
 import {
   ANALYSIS_DAYS,
+  SLOT_MINUTES,
   SLOTS_PER_DAY,
+  buildAvailabilitySlots,
   buildBusyMask,
   findCommonFreeTimes,
   hasConflict,
   intersectMasks,
   sortFreeTimes,
+  type CommonAvailabilitySlot,
   type CommonFreeTime,
 } from './time'
 
@@ -54,6 +57,7 @@ export interface GroupAnalysis {
   sharedMembers: MemberShareInfo[]
   unsharedMembers: GroupMember[]
   commonFree: CommonFreeTime[]
+  availabilitySlots: CommonAvailabilitySlot[][]
   sharedCourses: SharedCourse[]
   sameCourseDifferentSection: SharedCourse[]
   recommendableCourses: RecommendableCourse[]
@@ -90,7 +94,7 @@ function pairCommonFreeMinutes(a: boolean[][], b: boolean[][]): number {
   let free = 0
   for (let d = 0; d < ANALYSIS_DAYS.length; d++) {
     for (let s = 0; s < SLOTS_PER_DAY; s++) {
-      if (intersect[d][s]) free += 30
+      if (intersect[d][s]) free += SLOT_MINUTES
     }
   }
   return free
@@ -297,6 +301,13 @@ export function analyzeGroup(members: GroupMember[], meUserId?: number): GroupAn
     : ANALYSIS_DAYS.map(() => new Array(SLOTS_PER_DAY).fill(false))
   const commonFreeRaw = canAnalyze ? findCommonFreeTimes(intersectFree) : []
   const commonFree = sortFreeTimes(commonFreeRaw)
+  const availabilitySlots = canAnalyze
+    ? buildAvailabilitySlots(sharedMembers.map((info) => ({
+        userId: info.member.user_id,
+        nickname: info.member.nickname,
+        busyMask: info.busyMask,
+      })))
+    : ANALYSIS_DAYS.map(() => [])
 
   const { exactlyShared, sameCourseDifferentSection } = buildSharedCourseGroups(sharedMembers)
 
@@ -368,6 +379,7 @@ export function analyzeGroup(members: GroupMember[], meUserId?: number): GroupAn
     sharedMembers,
     unsharedMembers,
     commonFree,
+    availabilitySlots,
     sharedCourses: exactlyShared,
     sameCourseDifferentSection,
     recommendableCourses,

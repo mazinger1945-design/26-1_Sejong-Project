@@ -13,6 +13,7 @@ import com.smartsejong.api.domain.recommend.dto.CustomBlockDto;
 import com.smartsejong.api.domain.recommend.dto.RecommendationRequest;
 import com.smartsejong.api.domain.recommend.dto.RecommendationResponseDto;
 import com.smartsejong.api.domain.recommend.service.RecommendationService;
+import com.smartsejong.api.domain.recommend.service.WishlistLoader;
 import com.smartsejong.api.domain.timetable.dto.TimetableItemResponse;
 import com.smartsejong.api.domain.timetable.entity.Timetable;
 import com.smartsejong.api.domain.timetable.entity.TimetableItem;
@@ -50,6 +51,7 @@ public class GroupServiceImpl implements GroupService {
     private final UserRepository userRepository;
     private final TimetableRepository timetableRepository;
     private final RecommendationService recommendationService;
+    private final WishlistLoader wishlistLoader;
     private final GroupRecommendInputStore inputStore;
 
     private record FriendContext(
@@ -61,6 +63,8 @@ public class GroupServiceImpl implements GroupService {
     ) {}
 
     private record GroupCompatibility(int score, List<String> reasons) {}
+
+    private record WishlistSummary(int score, int averageCount, int popularCourseCount, List<String> reasons) {}
 
     @Override
     public CreateGroupResponse create(Long userId, CreateGroupRequest request) {
@@ -325,9 +329,8 @@ public class GroupServiceImpl implements GroupService {
 
         GroupCompatibility compatibility = scoreGroupCompatibility(baseSections, addedSections, request, friends);
         int groupScore = compatibility.score();
-        int totalScore = friends.isEmpty()
-                ? personalScore
-                : (int) Math.round(personalScore * 0.65 + groupScore * 0.35);
+        WishlistSummary wishlist = scoreWishlist(addedSections);
+        int totalScore = totalScore(personalScore, groupScore, wishlist.score(), !friends.isEmpty());
 
         RecommendationResponseDto.ScoreBreakdownDto previous = combo.getScoreBreakdown();
         RecommendationResponseDto.ScoreBreakdownDto scoreBreakdown = RecommendationResponseDto.ScoreBreakdownDto.builder()
@@ -339,8 +342,12 @@ public class GroupServiceImpl implements GroupService {
                 .total(totalScore)
                 .personalScore(personalScore)
                 .groupScore(groupScore)
+                .wishlistScore(wishlist.score())
                 .totalScore(totalScore)
                 .build();
+
+        List<String> groupReasons = new ArrayList<>(compatibility.reasons());
+        groupReasons.addAll(wishlist.reasons());
 
         return RecommendationResponseDto.CombinationDto.builder()
                 .sections(addedSections)
@@ -351,9 +358,55 @@ public class GroupServiceImpl implements GroupService {
                 .reasons(combo.getReasons() != null ? combo.getReasons() : List.of())
                 .personalScore(personalScore)
                 .groupScore(groupScore)
+                .wishlistScore(wishlist.score())
+                .wishlistAverageCount(wishlist.averageCount())
+                .popularCourseCount(wishlist.popularCourseCount())
                 .totalScore(totalScore)
-                .groupReasons(compatibility.reasons())
+                .groupReasons(groupReasons)
                 .build();
+    }
+
+    private int totalScore(int personalScore, int groupScore, int wishlistScore, boolean hasFriends) {
+        if (wishlistScore > 0) {
+            if (hasFriends) {
+                return (int) Math.round(personalScore * 0.52 + groupScore * 0.33 + wishlistScore * 0.15);
+            }
+            return (int) Math.round(personalScore * 0.85 + wishlistScore * 0.15);
+        }
+        return hasFriends
+                ? (int) Math.round(personalScore * 0.65 + groupScore * 0.35)
+                : personalScore;
+    }
+
+    private WishlistSummary scoreWishlist(List<RecommendationResponseDto.SectionDto> sections) {
+        if (sections == null || sections.isEmpty()) {
+            return new WishlistSummary(0, 0, 0, List.of());
+        }
+
+        List<Integer> counts = sections.stream()
+                .filter(this::isWishlistTarget)
+                .map(RecommendationResponseDto.SectionDto::getWishlistCount)
+                .filter(count -> count != null && count > 0)
+                .toList();
+        if (counts.isEmpty()) {
+            return new WishlistSummary(0, 0, 0, List.of());
+        }
+
+        int average = (int) Math.round(counts.stream().mapToInt(Integer::intValue).average().orElse(0));
+        int max = Math.max(1, wishlistLoader.getMaxCount());
+        int score = Math.max(0, Math.min(100, (int) Math.round((double) average / max * 100)));
+        int popularThreshold = Math.max(80, (int) Math.round(max * 0.35));
+        int popularCount = (int) counts.stream().filter(count -> count >= popularThreshold).count();
+
+        List<String> reasons = new ArrayList<>();
+        if (popularCount > 0) reasons.add("관심 등록이 많은 교양 과목 포함");
+        if (score >= 70) reasons.add("관심과목 상위 교양 포함");
+        return new WishlistSummary(score, average, popularCount, reasons);
+    }
+
+    private boolean isWishlistTarget(RecommendationResponseDto.SectionDto section) {
+        String category = section.getCategoryDescription() != null ? section.getCategoryDescription() : "";
+        return category.contains("교양") || !category.contains("전공");
     }
 
     private int totalScoreOf(RecommendationResponseDto.CombinationDto combo) {
@@ -517,7 +570,7 @@ public class GroupServiceImpl implements GroupService {
                 .college(college)
                 .department(department)
                 .times(new ArrayList<>(timeMap.values()))
-                .wishlistCount(0)
+                .wishlistCount(course != null ? wishlistLoader.getCount(course.getCourseCode()) : 0)
                 .build();
     }
 

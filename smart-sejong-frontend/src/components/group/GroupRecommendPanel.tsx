@@ -4,7 +4,8 @@ import toast from 'react-hot-toast'
 import { Icon } from '@/components/ui/Icon'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
-import type { BackendCombinationDto, BackendSectionDto } from '@/types'
+import { GroupRecommendationPreviewModal } from '@/components/group/GroupRecommendationPreviewModal'
+import type { BackendCombinationDto, BackendSectionDto, TimetableItem } from '@/types'
 
 const DAYS = ['월', '화', '수', '목', '금'] as const
 type Day = typeof DAYS[number]
@@ -37,6 +38,7 @@ interface Props {
   memberCount: number
   activeTimetableId?: number | null
   activeTimetableName?: string | null
+  activeTimetableItems?: TimetableItem[]
 }
 
 export function GroupRecommendPanel({
@@ -44,6 +46,7 @@ export function GroupRecommendPanel({
   memberCount,
   activeTimetableId,
   activeTimetableName,
+  activeTimetableItems = [],
 }: Props) {
   const [open, setOpen] = useState(false)
   const [creditMin, setCreditMin] = useState(12)
@@ -65,6 +68,7 @@ export function GroupRecommendPanel({
   const [showBlockForm, setShowBlockForm] = useState(false)
   const [result, setResult] = useState<BackendCombinationDto[]>([])
   const [diagnosisMessage, setDiagnosisMessage] = useState<string | null>(null)
+  const [preview, setPreview] = useState<{ combo: BackendCombinationDto; index: number } | null>(null)
   const currentUser = useAuthStore((s) => s.user)
   const queryClient = useQueryClient()
 
@@ -436,12 +440,22 @@ export function GroupRecommendPanel({
                   index={index}
                   activeTimetableName={activeTimetableName}
                   targetCreditText={targetCreditText}
+                  onPreview={() => setPreview({ combo, index })}
                 />
               ))}
             </div>
           )}
         </div>
       )}
+      {preview ? (
+        <GroupRecommendationPreviewModal
+          combo={preview.combo}
+          index={preview.index}
+          activeTimetableName={activeTimetableName}
+          activeTimetableItems={activeTimetableItems}
+          onClose={() => setPreview(null)}
+        />
+      ) : null}
     </div>
   )
 }
@@ -451,17 +465,20 @@ function ResultCard({
   index,
   activeTimetableName,
   targetCreditText,
+  onPreview,
 }: {
   combo: BackendCombinationDto
   index: number
   activeTimetableName?: string | null
   targetCreditText: string
+  onPreview: () => void
 }) {
   const baseSections = combo.baseSections ?? []
   const addedSections = combo.addedSections ?? combo.sections ?? []
   const baseCredits = baseSections.reduce((sum, section) => sum + section.credits, 0)
   const personalScore = combo.personalScore ?? combo.scoreBreakdown?.personalScore ?? combo.scoreBreakdown?.total ?? 0
   const groupScore = combo.groupScore ?? combo.scoreBreakdown?.groupScore ?? 0
+  const wishlistScore = combo.wishlistScore ?? combo.scoreBreakdown?.wishlistScore ?? 0
   const totalScore = combo.totalScore ?? combo.scoreBreakdown?.totalScore ?? combo.scoreBreakdown?.total ?? 0
   const reasons = [...(combo.groupReasons ?? []), ...(combo.reasons ?? [])]
 
@@ -477,6 +494,7 @@ function ResultCard({
         <div className="flex flex-wrap justify-end gap-1.5 text-[11px]">
           <ScoreBadge label="개인" value={personalScore} />
           <ScoreBadge label="친구" value={groupScore} />
+          <ScoreBadge label="관심" value={wishlistScore} mutedZero />
           <ScoreBadge label="총점" value={totalScore} strong />
         </div>
       </div>
@@ -486,6 +504,14 @@ function ResultCard({
 
       <div className="flex items-center justify-between text-xs text-gray-500">
         <span>총 {combo.totalCredits}학점</span>
+        <button
+          type="button"
+          onClick={onPreview}
+          className="inline-flex items-center gap-1 rounded-full border border-primary-100 bg-primary-50 px-2.5 py-1 font-medium text-primary-700 hover:bg-primary-100"
+        >
+          <Icon name="visibility" size={14} />
+          시간표 보기
+        </button>
       </div>
 
       {reasons.length > 0 && (
@@ -504,10 +530,20 @@ function ResultCard({
   )
 }
 
-function ScoreBadge({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) {
+function ScoreBadge({
+  label,
+  value,
+  strong = false,
+  mutedZero = false,
+}: {
+  label: string
+  value: number
+  strong?: boolean
+  mutedZero?: boolean
+}) {
   return (
     <span className={`rounded-full px-2 py-0.5 ${strong ? 'bg-sky-50 text-sky-700 font-bold' : 'bg-gray-50 text-gray-500'}`}>
-      {label} {value}점
+      {label} {mutedZero && value <= 0 ? '-' : `${value}점`}
     </span>
   )
 }
@@ -538,6 +574,9 @@ function SectionGroup({
               }`}
             >
               {section.courseName}{section.sectionNumber ? ` (${section.sectionNumber})` : ''}
+              {section.wishlistCount && section.wishlistCount > 0 ? (
+                <span className="ml-1 text-primary-600">관심 {section.wishlistCount}명</span>
+              ) : null}
             </span>
           ))}
         </div>

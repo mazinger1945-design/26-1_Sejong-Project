@@ -4,8 +4,8 @@ export const ANALYSIS_DAYS = ['월', '화', '수', '목', '금'] as const
 export type AnalysisDay = (typeof ANALYSIS_DAYS)[number]
 
 export const SLOT_MINUTES = 30
-export const SLOT_START_HOUR = 9
-export const SLOT_END_HOUR = 18
+export const SLOT_START_HOUR = 8
+export const SLOT_END_HOUR = 21
 export const SLOTS_PER_DAY = ((SLOT_END_HOUR - SLOT_START_HOUR) * 60) / SLOT_MINUTES
 
 export interface CommonFreeTime {
@@ -14,6 +14,30 @@ export interface CommonFreeTime {
   end: string
   durationMinutes: number
   type: 'team' | 'lunch' | 'free' | 'short'
+  label: string
+}
+
+export interface AvailabilitySource {
+  userId: number
+  nickname: string
+  busyMask: boolean[][]
+}
+
+export interface CommonAvailabilitySlot {
+  day: AnalysisDay
+  start: string
+  end: string
+  availableCount: number
+  totalMemberCount: number
+  availableNicknames: string[]
+  availableMemberIds: number[]
+  isAllFree: boolean
+  isLunchCandidate: boolean
+  isTeamCandidate: boolean
+}
+
+export interface CommonAvailabilityRange extends CommonAvailabilitySlot {
+  durationMinutes: number
   label: string
 }
 
@@ -84,12 +108,12 @@ export function intersectMasks(masks: boolean[][][]): boolean[][] {
 }
 
 function classify(durationMinutes: number, startMin: number, endMin: number): CommonFreeTime['type'] {
-  if (durationMinutes >= 120) return 'free'
   if (durationMinutes >= 90) return 'team'
   const lunchStart = 11 * 60 + 30
   const lunchEnd = 14 * 60
   const overlapsLunch = endMin > lunchStart && startMin < lunchEnd
   if (overlapsLunch && durationMinutes >= 30) return 'lunch'
+  if (durationMinutes >= 120) return 'free'
   if (durationMinutes >= 30) return 'short'
   return 'short'
 }
@@ -132,6 +156,103 @@ export function sortFreeTimes(items: CommonFreeTime[]): CommonFreeTime[] {
     if (a.day !== b.day) return dayOrder(a.day) - dayOrder(b.day)
     return parseTime(a.start) - parseTime(b.start)
   })
+}
+
+export function buildAvailabilitySlots(members: AvailabilitySource[]): CommonAvailabilitySlot[][] {
+  const totalMemberCount = members.length
+  const slots: CommonAvailabilitySlot[][] = ANALYSIS_DAYS.map((day) =>
+    Array.from({ length: SLOTS_PER_DAY }, (_, slot) => {
+      const startMin = SLOT_START_HOUR * 60 + slot * SLOT_MINUTES
+      const endMin = startMin + SLOT_MINUTES
+      const available = members.filter((member) => !member.busyMask[ANALYSIS_DAYS.indexOf(day)][slot])
+      return {
+        day,
+        start: minutesToTimeString(startMin),
+        end: minutesToTimeString(endMin),
+        availableCount: available.length,
+        totalMemberCount,
+        availableNicknames: available.map((member) => member.nickname),
+        availableMemberIds: available.map((member) => member.userId),
+        isAllFree: totalMemberCount > 0 && available.length === totalMemberCount,
+        isLunchCandidate: startMin < 14 * 60 && endMin > 11 * 60 + 30,
+        isTeamCandidate: false,
+      }
+    }),
+  )
+
+  for (const daySlots of slots) {
+    let start = 0
+    while (start < daySlots.length) {
+      if (daySlots[start].availableCount < 2) {
+        start++
+        continue
+      }
+      const count = daySlots[start].availableCount
+      let end = start
+      while (end < daySlots.length && daySlots[end].availableCount >= 2) end++
+      if ((end - start) * SLOT_MINUTES >= 90) {
+        for (let i = start; i < end; i++) {
+          daySlots[i] = { ...daySlots[i], isTeamCandidate: daySlots[i].availableCount >= Math.min(count, 2) }
+        }
+      }
+      start = end
+    }
+  }
+
+  return slots
+}
+
+export function buildAvailabilityRanges(
+  slots: CommonAvailabilitySlot[][],
+  minAvailable: number,
+): CommonAvailabilityRange[] {
+  const ranges: CommonAvailabilityRange[] = []
+  for (let d = 0; d < ANALYSIS_DAYS.length; d++) {
+    let s = 0
+    while (s < SLOTS_PER_DAY) {
+      if (!slots[d]?.[s] || slots[d][s].availableCount < minAvailable) {
+        s++
+        continue
+      }
+      let e = s
+      let minCount = slots[d][s].availableCount
+      const memberIds = new Set(slots[d][s].availableMemberIds)
+      const nicknames = new Set(slots[d][s].availableNicknames)
+      while (e < SLOTS_PER_DAY && slots[d][e].availableCount >= minAvailable) {
+        minCount = Math.min(minCount, slots[d][e].availableCount)
+        for (const id of Array.from(memberIds)) {
+          if (!slots[d][e].availableMemberIds.includes(id)) memberIds.delete(id)
+        }
+        for (const nickname of Array.from(nicknames)) {
+          if (!slots[d][e].availableNicknames.includes(nickname)) nicknames.delete(nickname)
+        }
+        e++
+      }
+
+      const startMin = SLOT_START_HOUR * 60 + s * SLOT_MINUTES
+      const endMin = SLOT_START_HOUR * 60 + e * SLOT_MINUTES
+      const durationMinutes = endMin - startMin
+      const isAllFree = slots[d][s].totalMemberCount > 0 && minCount === slots[d][s].totalMemberCount
+      const isLunchCandidate = endMin > 11 * 60 + 30 && startMin < 14 * 60 && durationMinutes >= 30
+      const isTeamCandidate = durationMinutes >= 90
+      ranges.push({
+        day: ANALYSIS_DAYS[d],
+        start: minutesToTimeString(startMin),
+        end: minutesToTimeString(endMin),
+        availableCount: minCount,
+        totalMemberCount: slots[d][s].totalMemberCount,
+        availableNicknames: Array.from(nicknames),
+        availableMemberIds: Array.from(memberIds),
+        isAllFree,
+        isLunchCandidate,
+        isTeamCandidate,
+        durationMinutes,
+        label: isTeamCandidate ? '팀플 가능' : isLunchCandidate ? '점심 가능' : isAllFree ? '전원 가능' : `${minCount}명 가능`,
+      })
+      s = e
+    }
+  }
+  return ranges
 }
 
 export function hasConflict(
