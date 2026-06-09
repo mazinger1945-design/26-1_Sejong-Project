@@ -39,6 +39,7 @@ export function toRSection(raw: GroupedSectionRaw): RSection {
     college: raw.college ?? '',
     department: raw.department ?? '',
     wishlistCount: (raw as any).wishlistCount ?? 0,
+    cyberClass: raw.cyberClass ?? null,
   }
 }
 

@@ -1,4 +1,4 @@
-import { X } from 'lucide-react'
+import { Icon } from '@/components/ui/Icon'
 import { TimetableGrid } from '@/components/timetable/TimetableGrid'
 import type { BackendCombinationDto, BackendSectionDto, TimetableItem } from '@/types'
 
@@ -15,6 +15,24 @@ function sectionToItems(
   groupIndex: number,
   variant: TimetableItem['_variant'],
 ): TimetableItem[] {
+  if (!section.times.length) {
+    return [{
+      item_id: -(groupIndex * 100 + 1),
+      section_id: section.sectionId,
+      course_id: section.courseId,
+      course_code: section.courseCode,
+      section_number: section.sectionNumber,
+      professor: section.professor,
+      name: `${section.courseName}${section.sectionNumber ? ` (${section.sectionNumber})` : ''}`,
+      day: '',
+      start: '',
+      end: '',
+      is_pinned: false,
+      type: 'section',
+      _variant: variant,
+      cyber_class: section.cyberClass ?? '온라인',
+    }]
+  }
   return section.times.map((time, timeIndex) => ({
     item_id: -(groupIndex * 100 + timeIndex + 1),
     section_id: section.sectionId,
@@ -90,7 +108,7 @@ export function GroupRecommendationPreviewModal({
             className="rounded-full p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
             aria-label="닫기"
           >
-            <X className="w-5 h-5" />
+            <Icon name="close" size={20} />
           </button>
         </div>
 

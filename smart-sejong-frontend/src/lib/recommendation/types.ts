@@ -33,6 +33,7 @@ export interface RSection {
   college: string              // 개설 단과대 (예: "인공지능융합대학")
   department: string           // 개설 학과/전공 (예: "AI로봇학과")
   wishlistCount: number        // allcll.kr 관심과목 담은 수
+  cyberClass: string | null    // 사이버강좌 종류 (null이면 일반 강의)
 }
 
 /** 정규화 후 bitmask 추가된 분반 */

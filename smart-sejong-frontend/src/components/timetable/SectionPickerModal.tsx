@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, Search, X } from 'lucide-react'
 import { api } from '@/lib/api'
+import { Icon } from '@/components/ui/Icon'
 import type { GroupedSectionRaw } from '@/types'
 
 interface SectionPickerModalProps {
@@ -49,12 +49,12 @@ export function SectionPickerModal({
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h3 className="text-lg font-semibold">{title}</h3>
           <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-700">
-            <X className="w-5 h-5" />
+            <Icon name="close" size={20} />
           </button>
         </div>
         <div className="p-4 border-b border-gray-200">
           <div className="relative">
-            <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+            <Icon name="search" size={16} className="absolute left-3 top-2.5 text-gray-400" />
             <input
               autoFocus
               type="text"
@@ -64,7 +64,7 @@ export function SectionPickerModal({
               className="input pl-9"
             />
             {loading ? (
-              <Loader2 className="absolute right-3 top-2.5 w-4 h-4 text-gray-400 animate-spin" />
+              <Icon name="progress_activity" size={16} className="absolute right-3 top-2.5 text-gray-400 animate-spin" />
             ) : null}
           </div>
         </div>
@@ -87,18 +87,28 @@ export function SectionPickerModal({
                     onClick={() => onPick(r)}
                     className="w-full text-left px-4 py-3 hover:bg-primary-50 transition-colors disabled:opacity-60"
                   >
-                    <p className="text-sm font-medium text-gray-900">
-                      {r.courseName}
-                      {r.sectionNumber ? (
-                        <span className="text-xs text-gray-500 ml-1">({r.sectionNumber}분반)</span>
-                      ) : null}
-                    </p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-sm font-medium text-gray-900">
+                        {r.courseName}
+                        {r.sectionNumber ? (
+                          <span className="text-xs text-gray-500 ml-1">({r.sectionNumber}분반)</span>
+                        ) : null}
+                      </p>
+                      {r.cyberClass && (
+                        <span className="flex items-center gap-0.5 text-[10px] font-medium text-violet-600 bg-violet-50 border border-violet-200 rounded-full px-1.5 py-0.5">
+                          <Icon name="wifi" size={10} className="text-violet-500" />
+                          온라인
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500 mt-0.5">
                       {r.professor ? `${r.professor} · ` : ''}
                       {r.credits}학점
-                      {r.times.length > 0
-                        ? ` · ${r.times.map((t) => `${t.dayOfWeekKor} ${t.startTime}~${t.endTime}`).join(', ')}`
-                        : ''}
+                      {r.cyberClass
+                        ? ` · ${r.cyberClass}`
+                        : r.times.length > 0
+                          ? ` · ${r.times.map((t) => `${t.dayOfWeekKor} ${t.startTime}~${t.endTime}`).join(', ')}`
+                          : ''}
                     </p>
                   </button>
                 </li>

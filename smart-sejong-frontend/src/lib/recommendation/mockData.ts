@@ -16,6 +16,7 @@ export const MOCK_SECTIONS: GroupedSectionRaw[] = [
     categoryDescription: '전공필수',
     college: '소프트웨어융합대학',
     department: '소프트웨어학과',
+    cyberClass: null,
     times: [
       { dayOfWeekKor: '월', startTime: '09:00', endTime: '10:30' },
       { dayOfWeekKor: '수', startTime: '09:00', endTime: '10:30' },
@@ -32,6 +33,7 @@ export const MOCK_SECTIONS: GroupedSectionRaw[] = [
     categoryDescription: '전공선택',
     college: '소프트웨어융합대학',
     department: '소프트웨어학과',
+    cyberClass: null,
     times: [
       { dayOfWeekKor: '화', startTime: '10:30', endTime: '12:00' },
       { dayOfWeekKor: '목', startTime: '10:30', endTime: '12:00' },
@@ -48,6 +50,7 @@ export const MOCK_SECTIONS: GroupedSectionRaw[] = [
     categoryDescription: '전공선택',
     college: '인공지능융합대학',
     department: 'AI로봇학과',
+    cyberClass: null,
     times: [
       { dayOfWeekKor: '월', startTime: '13:30', endTime: '15:00' },
       { dayOfWeekKor: '수', startTime: '13:30', endTime: '15:00' },
@@ -64,6 +67,7 @@ export const MOCK_SECTIONS: GroupedSectionRaw[] = [
     categoryDescription: '전공선택',
     college: '인공지능융합대학',
     department: 'AI융합전자공학과',
+    cyberClass: null,
     times: [
       { dayOfWeekKor: '화', startTime: '13:30', endTime: '15:00' },
       { dayOfWeekKor: '목', startTime: '13:30', endTime: '15:00' },
@@ -80,6 +84,7 @@ export const MOCK_SECTIONS: GroupedSectionRaw[] = [
     categoryDescription: '전공선택',
     college: '소프트웨어융합대학',
     department: '콘텐츠소프트웨어학과',
+    cyberClass: null,
     times: [
       { dayOfWeekKor: '금', startTime: '09:00', endTime: '12:00' },
     ],
@@ -95,6 +100,7 @@ export const MOCK_SECTIONS: GroupedSectionRaw[] = [
     categoryDescription: '교양선택',
     college: '대양휴머니티칼리지',
     department: '대양휴머니티칼리지',
+    cyberClass: null,
     times: [
       { dayOfWeekKor: '수', startTime: '15:00', endTime: '17:00' },
     ],

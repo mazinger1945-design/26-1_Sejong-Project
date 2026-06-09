@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
 import { Icon } from '@/components/ui/Icon'
 import sejongLogo from '@/components/image.png'
+import bgImage from '@/components/background.png'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -72,18 +73,25 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-500 via-indigo-500 to-violet-600 relative">
+    <div
+      className="min-h-screen relative"
+      style={{
+        backgroundImage: `url(${bgImage})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      {/* 그라디언트 오버레이 */}
+      <div className="absolute inset-0 bg-gradient-to-br from-sky-600/80 via-indigo-600/80 to-violet-700/80" />
 
       {/* 로고 - absolute 고정 */}
-      <div className="absolute top-8 left-10 hidden md:flex items-center gap-3">
-        <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow">
-          <img src={sejongLogo} alt="세종대 로고" className="w-9 h-9 object-contain brightness-[10]" />
-        </div>
-        <span className="text-xl font-bold text-white tracking-tight">Smart Sejong</span>
+      <div className="absolute top-10 left-16 hidden md:flex items-center gap-4 z-10">
+        <img src={sejongLogo} alt="세종대 로고" className="w-16 h-16 object-contain brightness-[10]" />
+        <span className="text-3xl font-bold text-white tracking-tight">Smart Sejong</span>
       </div>
 
       {/* 본문 - 수직 중앙 정렬 */}
-      <div className="min-h-screen flex items-center justify-center px-10">
+      <div className="relative z-10 min-h-screen flex items-center justify-center px-10">
         <div className="w-full max-w-4xl flex items-center gap-16">
 
         {/* 왼쪽: 브랜딩 텍스트 */}

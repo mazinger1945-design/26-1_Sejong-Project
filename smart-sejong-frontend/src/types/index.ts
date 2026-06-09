@@ -10,6 +10,7 @@ export interface GroupedSectionRaw {
   categoryDescription: string | null  // "전공필수", "전공선택", "교양선택" 등
   college: string | null              // 개설 단과대 (예: "인공지능융합대학")
   department: string | null           // 개설 학과/전공 (예: "AI로봇학과")
+  cyberClass: string | null           // 사이버강좌 종류 (null이면 일반 강의)
   times: {
     dayOfWeekKor: string   // "월", "화", ...
     startTime: string      // "09:00"
@@ -142,6 +143,7 @@ export interface TimetableItem {
   end: string
   is_pinned: boolean
   type: 'section' | 'custom'
+  cyber_class?: string | null
   /**
    * 표시 전용 variant (추천 페이지 미리보기에서 사용)
    * 'locked'        → 고정 분반 (초록)
@@ -240,6 +242,7 @@ export interface BackendSectionDto {
   categoryDescription: string | null
   college: string | null
   department: string | null
+  cyberClass?: string | null
   times: { dayOfWeekKor: string; startTime: string; endTime: string }[]
   wishlistCount?: number
 }

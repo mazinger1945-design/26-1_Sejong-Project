@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Users } from 'lucide-react'
+import { Icon } from '@/components/ui/Icon'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import { GroupListPanel } from '@/components/group/GroupListPanel'
@@ -312,7 +312,7 @@ function EmptyDetail({ message }: { message: string }) {
   return (
     <div className="card">
       <div className="text-center py-12 text-gray-500">
-        <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+        <Icon name="group" size={64} className="mx-auto mb-4 text-gray-300" />
         <p>{message}</p>
       </div>
     </div>

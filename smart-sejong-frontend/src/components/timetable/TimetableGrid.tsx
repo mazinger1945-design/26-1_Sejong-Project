@@ -1,6 +1,6 @@
 import React from 'react'
 import type { TimetableItem } from '@/types'
-import { Pin, Lock } from 'lucide-react'
+import { Icon } from '@/components/ui/Icon'
 
 interface TimetableGridProps {
   items: TimetableItem[]
@@ -13,6 +13,8 @@ const DAYS = ['월', '화', '수', '목', '금']
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 8) // 8시부터 21시까지
 
 export function TimetableGrid({ items, onItemClick, onPinToggle, editable = false }: TimetableGridProps) {
+  const onlineItems = items.filter((item) => item.cyber_class)
+  const gridItems = items.filter((item) => !item.cyber_class)
   const parseTime = (time: string): number => {
     const [hour, minute = 0] = time.split(':').map(Number)
     return hour + minute / 60
@@ -56,7 +58,8 @@ export function TimetableGrid({ items, onItemClick, onPinToggle, editable = fals
     item._variant === 'locked' || item._variant === 'custom-locked'
 
   return (
-    <div className="w-full overflow-x-auto">
+    <div className="w-full space-y-4">
+      <div className="overflow-x-auto">
       <div className="min-w-[800px]">
         {/* Header */}
         <div className="grid grid-cols-6 gap-1 mb-2">
@@ -85,7 +88,7 @@ export function TimetableGrid({ items, onItemClick, onPinToggle, editable = fals
                     className="border-r border-b border-gray-200 min-h-[80px] relative"
                   >
                     {/* Items for this time slot */}
-                    {items
+                    {gridItems
                       .flatMap((item) => {
                         const pos = getItemPosition(item)
                         if (!pos || pos.day !== dayIndex + 1) return []
@@ -122,7 +125,7 @@ export function TimetableGrid({ items, onItemClick, onPinToggle, editable = fals
                             </div>
                             {/* 잠금 variant는 자물쇠 아이콘, 일반은 핀 아이콘 */}
                             {isLockedVariant(item) ? (
-                              <Lock className="w-2.5 h-2.5 flex-shrink-0 ml-1 opacity-80" />
+                              <Icon name="lock" size={10} className="flex-shrink-0 ml-1 opacity-80" />
                             ) : editable && onPinToggle ? (
                               <button
                                 onClick={(e) => {
@@ -135,7 +138,7 @@ export function TimetableGrid({ items, onItemClick, onPinToggle, editable = fals
                                     : 'bg-white bg-opacity-20 hover:bg-opacity-30'
                                 }`}
                               >
-                                <Pin className={`w-2.5 h-2.5 ${item.is_pinned ? 'fill-current' : ''}`} />
+                                <Icon name="push_pin" size={10} filled={item.is_pinned} />
                               </button>
                             ) : null}
                           </div>
@@ -148,6 +151,33 @@ export function TimetableGrid({ items, onItemClick, onPinToggle, editable = fals
           </div>
         </div>
       </div>
+      </div>
+
+      {/* 온라인 수업 섹션 */}
+      {onlineItems.length > 0 && (
+        <div>
+          <div className="flex items-center gap-1.5 mb-2">
+            <Icon name="wifi" size={16} className="text-violet-500" />
+            <span className="text-sm font-semibold text-gray-700">온라인 수업</span>
+            <span className="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">{onlineItems.length}개</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {onlineItems.map((item) => (
+              <button
+                key={item.item_id}
+                onClick={() => onItemClick?.(item)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 border border-violet-200 rounded-full text-sm text-violet-800 hover:bg-violet-100 transition-colors"
+              >
+                <Icon name="cast_for_education" size={14} className="text-violet-500 shrink-0" />
+                <span className="font-medium">{item.name}</span>
+                {item.professor && (
+                  <span className="text-violet-500 text-xs">{item.professor}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

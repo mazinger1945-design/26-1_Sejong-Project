@@ -102,7 +102,20 @@ function dedupeCompletedCourseInfo(items: CompletedCourseInfo[]): CompletedCours
 // ── TimetableItem 변환 헬퍼 ──────────────────────────────────
 
 function fixedSectionToItem(sec: FixedSection, idx: number): TimetableItem[] {
-  if (!sec.meetingTimes.length) return []
+  if (!sec.meetingTimes.length) {
+    return [{
+      item_id: -(idx * 100 + 1),
+      section_id: undefined,
+      name: `${sec.courseName} (${sec.sectionName})`,
+      day: '',
+      start: '',
+      end: '',
+      is_pinned: false,
+      type: 'section' as const,
+      _variant: 'locked' as const,
+      cyber_class: sec.cyberClass ?? '온라인',
+    }]
+  }
   return sec.meetingTimes.map((mt, j) => ({
     item_id: -(idx * 100 + j + 1),
     section_id: undefined,
@@ -134,6 +147,20 @@ function recommendedSectionToItems(item: RecommendationItem, fixedSections: Fixe
   const result: TimetableItem[] = []
   allSections.forEach((sec, i) => {
     const isFixed = i < fixedSections.length
+    if (!sec.meetingTimes.length) {
+      result.push({
+        item_id: -(20000 + i * 100),
+        name: `${sec.courseName}${sec.sectionName ? ` (${sec.sectionName})` : ''}`,
+        day: '',
+        start: '',
+        end: '',
+        is_pinned: false,
+        type: 'section' as const,
+        _variant: isFixed ? 'locked' : 'recommended',
+        cyber_class: sec.cyberClass ?? '온라인',
+      })
+      return
+    }
     sec.meetingTimes.forEach((mt, j) => {
       result.push({
         item_id: -(20000 + i * 100 + j),
