@@ -41,6 +41,9 @@ public class RecommendationRequest {
 
     private String userMajor = "";
 
+    /** 기이수 과목 학수번호 목록 (카테고리 기반 추천 점수에 활용) */
+    private List<String> completedCourseCodes = List.of();
+
     public void appendCustomBlocks(List<CustomBlockDto> extra) {
         List<CustomBlockDto> merged = new ArrayList<>(this.customBlocks != null ? this.customBlocks : List.of());
         if (extra != null) {

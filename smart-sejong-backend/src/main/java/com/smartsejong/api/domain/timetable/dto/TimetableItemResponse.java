@@ -17,7 +17,8 @@ public record TimetableItemResponse(
         String start,
         String end,
         @JsonProperty("is_pinned") boolean isPinned,
-        String type
+        String type,
+        @JsonProperty("cyber_class") String cyberClass
 ) {
     public static TimetableItemResponse from(TimetableItem item) {
         if (item.isCustom()) {
@@ -33,7 +34,8 @@ public record TimetableItemResponse(
                     item.getCustomStart() != null ? item.getCustomStart().toString() : "",
                     item.getCustomEnd() != null ? item.getCustomEnd().toString() : "",
                     item.isPinned(),
-                    "custom"
+                    "custom",
+                    null
             );
         }
         Section sec = item.getSection();
@@ -50,7 +52,8 @@ public record TimetableItemResponse(
                 sec.getStartTime() != null ? sec.getStartTime().toString() : "",
                 sec.getEndTime() != null ? sec.getEndTime().toString() : "",
                 item.isPinned(),
-                "section"
+                "section",
+                sec.getCyberClass()
         );
     }
 }

@@ -46,10 +46,13 @@ public class Section extends BaseTimeEntity {
     @Column
     private String department; // 개설 학과/전공
 
+    @Column(name = "cyber_class")
+    private String cyberClass; // 사이버강좌 여부 (T열 값)
+
     @Builder
     public Section(Course course, String professor, DayOfWeek dayOfWeek,
                    LocalTime startTime, LocalTime endTime, String room, String sectionNumber,
-                   String college, String department) {
+                   String college, String department, String cyberClass) {
         this.course = course;
         this.professor = professor;
         this.dayOfWeek = dayOfWeek;
@@ -59,5 +62,6 @@ public class Section extends BaseTimeEntity {
         this.sectionNumber = sectionNumber;
         this.college = college;
         this.department = department;
+        this.cyberClass = cyberClass;
     }
 }

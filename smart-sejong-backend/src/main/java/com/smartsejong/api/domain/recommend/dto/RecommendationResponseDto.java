@@ -44,6 +44,7 @@ public class RecommendationResponseDto {
         private String categoryDescription;
         private String college;
         private String department;
+        private String cyberClass;
         private List<TimeDto> times;
         private int wishlistCount;
     }
@@ -64,6 +65,7 @@ public class RecommendationResponseDto {
         private double gap;
         private double lunch;
         private double major;
+        private double category;
         private int total;
         private Integer personalScore;
         private Integer groupScore;

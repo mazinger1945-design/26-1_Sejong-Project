@@ -143,6 +143,7 @@ public class CourseServiceImpl implements CourseService {
                             .categoryDescription(categoryDesc)
                             .college(getEffectiveCollege(rep))
                             .department(getEffectiveDepartment(rep))
+                            .cyberClass(rep.getCyberClass())
                             .times(times)
                             .build();
                 })
@@ -182,6 +183,8 @@ public class CourseServiceImpl implements CourseService {
                     String timeStr = getCellValue(row.getCell(13));
                     String room = getCellValue(row.getCell(14));
                     String professor = getCellValue(row.getCell(15));
+                    String cyberClassRaw = getCellValue(row.getCell(19));
+                    String cyberClass = blankToNull(cyberClassRaw);
                     CourseCategory category = CourseCategory.fromString(categoryStr);
                     String normalizedCollege = blankToNull(college);
                     String normalizedDepartment = blankToNull(department);
@@ -222,6 +225,7 @@ public class CourseServiceImpl implements CourseService {
                                 .room(room)
                                 .college(normalizedCollege)
                                 .department(normalizedDepartment)
+                                .cyberClass(cyberClass)
                                 .build();
                         sectionRepository.save(section);
                     } else {
@@ -237,6 +241,7 @@ public class CourseServiceImpl implements CourseService {
                                     .room(room)
                                     .college(normalizedCollege)
                                     .department(normalizedDepartment)
+                                    .cyberClass(cyberClass)
                                     .build();
                             sectionRepository.save(section);
                         }

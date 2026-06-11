@@ -93,6 +93,7 @@ function dedupeCompletedCourseInfo(items: CompletedCourseInfo[]): CompletedCours
     result.push({
       courseCode: item.courseCode?.trim() ?? '',
       courseName: item.courseName?.trim() ?? '',
+      category: item.category,
     })
   }
 
@@ -508,6 +509,7 @@ export default function RecommendationPage() {
             latestCompletedCourses.map((course) => ({
               courseCode: course.courseCode ?? '',
               courseName: course.courseName ?? '',
+              category: course.category ?? '',
             })),
           )
           setCompletedCourseInfo(effectiveCompletedCourseInfo)
@@ -535,6 +537,14 @@ export default function RecommendationPage() {
         })),
         excludedCourseIds: filters.excludedCourseIds.map(Number),
         excludedCourseCodes: [...equivalentCodeSet],
+        completedCourseCodes: effectiveCompletedCourseInfo
+          .filter((c) => {
+            const cat = c.category ?? ''
+            // 교양 계열: 교선, 교선1, 교선2, 교필, 기교(기초교양) 등
+            return cat.startsWith('교') || cat === '기교'
+          })
+          .map((c) => c.courseCode)
+          .filter(Boolean),
         creditMin: filters.creditRange.min,
         creditMax: filters.creditRange.max,
         preferredFreeDays: filters.preferredFreeDays,

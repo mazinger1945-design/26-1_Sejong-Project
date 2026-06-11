@@ -3,6 +3,7 @@ export const COMPLETED_COURSES_STORAGE_KEY = 'completed_course_info'
 export interface CompletedCourseInfo {
   courseCode: string
   courseName: string
+  category?: string  // 이수구분 (예: "교양선택", "전공필수")
 }
 
 export function saveCompletedCourseInfo(items: CompletedCourseInfo[]): void {

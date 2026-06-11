@@ -23,6 +23,7 @@ public class GroupedSectionResponse {
     private String categoryDescription;  // 예: "전공필수", "교양선택"
     private String college;              // 개설 단과대 (예: "인공지능융합대학")
     private String department;           // 개설 학과/전공 (예: "AI로봇학과")
+    private String cyberClass;           // 사이버강좌 종류 (null이면 일반 강의)
     private List<SectionTimeDto> times;
 
     @Getter

@@ -216,6 +216,7 @@ export interface BackendRecommendationRequest {
   needsLunchBreak: boolean
   majorMinCount: number
   userMajor: string
+  completedCourseCodes?: string[]
 }
 
 export interface BackendScoreBreakdown {
@@ -224,6 +225,7 @@ export interface BackendScoreBreakdown {
   gap: number
   lunch: number
   major: number
+  category?: number
   total: number
   personalScore?: number
   groupScore?: number

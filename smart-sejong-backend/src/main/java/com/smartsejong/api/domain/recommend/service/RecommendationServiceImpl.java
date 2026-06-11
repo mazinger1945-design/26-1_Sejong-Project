@@ -22,6 +22,7 @@ public class RecommendationServiceImpl implements RecommendationService {
 
     private final SectionRepository sectionRepository;
     private final WishlistLoader wishlistLoader;
+    private final CourseCategoryLoader categoryLoader;
 
     // ── 상수 ─────────────────────────────────────────────────────────────
 
@@ -38,6 +39,7 @@ public class RecommendationServiceImpl implements RecommendationService {
     private static final double W_GAP = 20.0;
     private static final double W_LUNCH = 15.0;
     private static final double W_POPULARITY = 15.0;
+    private static final double W_CATEGORY = 20.0;
 
     private static final int[] GAP_MINUTES = {0, 60, 120, Integer.MAX_VALUE};
 
@@ -59,7 +61,7 @@ public class RecommendationServiceImpl implements RecommendationService {
             long sectionId, long courseId, String courseCode, String courseName,
             int credits, String sectionNum, String professor,
             String category, String college, String dept,
-            long[] mask, List<TimeInfo> times) {
+            long[] mask, List<TimeInfo> times, String cyberClass) {
         String groupKey() {
             return courseId + "_" + sectionNum + "_" + safe(professor)
                     + "_" + safe(college) + "_" + safe(dept);
@@ -69,7 +71,7 @@ public class RecommendationServiceImpl implements RecommendationService {
 
     private record CourseGroup(long courseId, List<SecData> sections) {}
 
-    private record Score(double time, double gap, double lunch, double popularity, int total) {}
+    private record Score(double time, double gap, double lunch, double popularity, double category, int total) {}
 
     private record Candidate(List<SecData> sections, int totalCredits, Score score, List<String> reasons) {
         String courseKey() {
@@ -83,6 +85,9 @@ public class RecommendationServiceImpl implements RecommendationService {
     @Override
     @Transactional(readOnly = true)
     public RecommendationResponseDto generate(RecommendationRequest req) {
+
+        // 0. 기이수 과목 카테고리 프로필 구성
+        Map<String, Integer> preferredCategories = buildPreferredCategories(req.getCompletedCourseCodes());
 
         // 1. DB에서 전체 분반 로드 및 그룹핑
         List<Section> dbSections = sectionRepository.findAllWithCourse();
@@ -150,7 +155,7 @@ public class RecommendationServiceImpl implements RecommendationService {
             int[] suffMaj = checkMajor ? suffixMaxMajor(shufflable, req.getUserMajor()) : new int[shufflable.size() + 1];
             int[] evalCnt = {0};
             dfs(0, initMask.clone(), new ArrayList<>(), fixedCredits, fixedMajorCnt,
-                    shufflable, suffCred, suffMaj, fixed, req, evalCnt, pool, poolIdx);
+                    shufflable, suffCred, suffMaj, fixed, req, preferredCategories, evalCnt, pool, poolIdx);
         }
 
         if (pool.isEmpty()) {
@@ -243,7 +248,7 @@ public class RecommendationServiceImpl implements RecommendationService {
                     safe(rep.getSectionNumber()),
                     safe(rep.getProfessor()),
                     catDesc, col, dep,
-                    buildMask(times), times));
+                    buildMask(times), times, rep.getCyberClass()));
         }
         return result;
     }
@@ -307,7 +312,7 @@ public class RecommendationServiceImpl implements RecommendationService {
 
     private void dfs(int idx, long[] mask, List<SecData> selected, int credits, int majorCnt,
                      List<CourseGroup> groups, int[] suffCred, int[] suffMajor,
-                     List<SecData> fixed, RecommendationRequest req,
+                     List<SecData> fixed, RecommendationRequest req, Map<String, Integer> preferredCategories,
                      int[] evalCnt, List<Candidate> pool, Map<String, Integer> poolIdx) {
 
         if (evalCnt[0] >= ROUND_EVAL) return;
@@ -333,8 +338,8 @@ public class RecommendationServiceImpl implements RecommendationService {
             all.addAll(selected);
             List<CustomBlockDto> blocks = req.getCustomBlocks();
 
-            Score score = score(all, blocks, req);
-            List<String> reasons = reasons(all, req, score);
+            Score score = score(all, blocks, req, preferredCategories);
+            List<String> reasons = reasons(all, req, score, preferredCategories);
 
             Candidate c = new Candidate(new ArrayList<>(selected), credits, score, reasons);
             insertPool(pool, poolIdx, c);
@@ -353,7 +358,7 @@ public class RecommendationServiceImpl implements RecommendationService {
             int addedMajor = (checkMajor && isMajor(sec, req.getUserMajor())) ? 1 : 0;
 
             dfs(idx + 1, next, selected, credits + sec.credits(), majorCnt + addedMajor,
-                    groups, suffCred, suffMajor, fixed, req, evalCnt, pool, poolIdx);
+                    groups, suffCred, suffMajor, fixed, req, preferredCategories, evalCnt, pool, poolIdx);
 
             selected.remove(selected.size() - 1);
             if (evalCnt[0] >= ROUND_EVAL) return;
@@ -361,21 +366,65 @@ public class RecommendationServiceImpl implements RecommendationService {
 
         // 스킵
         dfs(idx + 1, mask, selected, credits, majorCnt,
-                groups, suffCred, suffMajor, fixed, req, evalCnt, pool, poolIdx);
+                groups, suffCred, suffMajor, fixed, req, preferredCategories, evalCnt, pool, poolIdx);
     }
 
     // ── 점수 계산 ─────────────────────────────────────────────────────────
 
-    private Score score(List<SecData> all, List<CustomBlockDto> blocks, RecommendationRequest req) {
+    private Score score(List<SecData> all, List<CustomBlockDto> blocks, RecommendationRequest req,
+                        Map<String, Integer> preferredCategories) {
         double time = scoreTime(all, req);
         double gap = scoreGap(all, blocks, req);
         double lunch = req.isNeedsLunchBreak() ? scoreLunch(all, blocks) : 0;
         double popularity = scorePopularity(all, req);
+        double category = scoreCategory(all, preferredCategories);
 
-        double earned = time + gap + lunch + popularity;
-        double maxW = activeWeightSum(req);
+        double earned = time + gap + lunch + popularity + category;
+        double maxW = activeWeightSum(req, !preferredCategories.isEmpty());
         int total = maxW > 0 ? (int) Math.round(earned / maxW * 100) : 0;
-        return new Score(time, gap, lunch, popularity, total);
+        return new Score(time, gap, lunch, popularity, category, total);
+    }
+
+    private double scoreCategory(List<SecData> all, Map<String, Integer> preferredCategories) {
+        if (preferredCategories.isEmpty()) return 0;
+
+        // 교양 과목만 대상 (전공은 isMajor 로직이 별도 처리)
+        List<SecData> liberal = all.stream()
+                .filter(s -> s.cyberClass() == null && s.category().contains("교양"))
+                .toList();
+        if (liberal.isEmpty()) return 0;
+
+        double matched = 0;
+        for (SecData s : liberal) {
+            String secCat = categoryLoader.getCategory(s.courseCode());
+            if (secCat == null) continue;
+
+            double best = 0;
+            for (String prefCat : preferredCategories.keySet()) {
+                if (prefCat.equals(secCat)) {
+                    best = 1.0;
+                    break;
+                } else if (categoryLoader.getSimilarCategories(prefCat).contains(secCat)) {
+                    best = Math.max(best, 0.5);
+                }
+            }
+            matched += best;
+        }
+        return W_CATEGORY * (matched / liberal.size());
+    }
+
+    private Map<String, Integer> buildPreferredCategories(List<String> completedCodes) {
+        if (completedCodes == null || completedCodes.isEmpty()) {
+            log.info("[카테고리] completedCodes 없음 → 카테고리 점수 비활성");
+            return Map.of();
+        }
+        Map<String, Integer> result = new HashMap<>();
+        for (String code : completedCodes) {
+            String cat = categoryLoader.getCategory(code);
+            if (cat != null) result.merge(cat, 1, Integer::sum);
+        }
+        log.info("[카테고리] 교양 기이수 {}개 → 선호 카테고리: {}", completedCodes.size(), result);
+        return result;
     }
 
     private double scorePopularity(List<SecData> all, RecommendationRequest req) {
@@ -480,11 +529,12 @@ public class RecommendationServiceImpl implements RecommendationService {
         return map;
     }
 
-    private double activeWeightSum(RecommendationRequest req) {
+    private double activeWeightSum(RecommendationRequest req, boolean hasCategoryPref) {
         double sum = W_GAP + W_POPULARITY;
         if (!req.getMorningPreference().equals("NEUTRAL") || !req.getAfternoonPreference().equals("NEUTRAL")
                 || !req.getEveningPreference().equals("NEUTRAL")) sum += W_TIME;
         if (req.isNeedsLunchBreak()) sum += W_LUNCH;
+        if (hasCategoryPref) sum += W_CATEGORY;
         return sum;
     }
 
@@ -502,7 +552,8 @@ public class RecommendationServiceImpl implements RecommendationService {
 
     // ── 추천 이유 ─────────────────────────────────────────────────────────
 
-    private List<String> reasons(List<SecData> all, RecommendationRequest req, Score s) {
+    private List<String> reasons(List<SecData> all, RecommendationRequest req, Score s,
+                                  Map<String, Integer> preferredCategories) {
         List<String> r = new ArrayList<>();
 
         if (!req.getPreferredFreeDays().isEmpty()) {
@@ -523,6 +574,13 @@ public class RecommendationServiceImpl implements RecommendationService {
         if (req.getMajorMinCount() > 0 && hasMajorCtx(req.getUserMajor())) {
             long cnt = all.stream().filter(sec -> isMajor(sec, req.getUserMajor())).count();
             r.add("전공 과목 " + cnt + "개 포함");
+        }
+
+        if (!preferredCategories.isEmpty() && s.category() / W_CATEGORY >= 0.4) {
+            String topCat = preferredCategories.entrySet().stream()
+                    .max(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey).orElse("");
+            if (!topCat.isEmpty()) r.add("이수 이력 기반 '" + topCat + "' 계열 과목 포함");
         }
 
         if (r.isEmpty()) r.add("종합 점수 " + s.total() + "점");
@@ -717,7 +775,7 @@ public class RecommendationServiceImpl implements RecommendationService {
                 .totalCredits(c.totalCredits())
                 .scoreBreakdown(ScoreBreakdownDto.builder()
                         .freeDay(s.popularity()).timePreference(s.time()).gap(s.gap())
-                        .lunch(s.lunch()).major(0).total(s.total())
+                        .lunch(s.lunch()).major(0).category(s.category()).total(s.total())
                         .personalScore(s.total()).groupScore(0).wishlistScore(0).totalScore(s.total())
                         .build())
                 .reasons(c.reasons())
@@ -744,6 +802,7 @@ public class RecommendationServiceImpl implements RecommendationService {
                 .credits(s.credits()).categoryDescription(s.category())
                 .college(s.college()).department(s.dept())
                 .times(times)
+                .cyberClass(s.cyberClass())
                 .wishlistCount(wishlistLoader.getCount(s.courseCode()))
                 .build();
     }
